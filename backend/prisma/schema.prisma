@@ -1,0 +1,152 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  color       String    @default("#6B7280")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  price       Decimal   @db.Decimal(10, 2)
+  cost        Decimal?  @db.Decimal(10, 2)
+  sku         String?   @unique
+  imageUrl    String?   @map("image_url")
+  categoryId  String    @map("category_id")
+  isAvailable Boolean   @default(true) @map("is_available")
+  stock       Int       @default(0)
+  lowStockAlert Int?    @map("low_stock_alert")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  saleItems   SaleItem[]
+  purchaseItems PurchaseItem[]
+
+  @@map("products")
+}
+
+model Sale {
+  id            String      @id @default(uuid())
+  receiptNumber String      @unique @map("receipt_number")
+  subtotal      Decimal     @db.Decimal(10, 2)
+  taxAmount     Decimal     @default(0) @db.Decimal(10, 2) @map("tax_amount")
+  discountAmount Decimal    @default(0) @db.Decimal(10, 2) @map("discount_amount")
+  totalAmount   Decimal     @db.Decimal(10, 2) @map("total_amount")
+  paymentMethod PaymentMethod @map("payment_method")
+  status        SaleStatus  @default(COMPLETED)
+  cashReceived  Decimal?    @db.Decimal(10, 2) @map("cash_received")
+  changeGiven   Decimal?    @db.Decimal(10, 2) @map("change_given")
+  notes         String?
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  items         SaleItem[]
+
+  @@map("sales")
+}
+
+model SaleItem {
+  id            String    @id @default(uuid())
+  saleId        String    @map("sale_id")
+  productId     String    @map("product_id")
+  quantity      Int
+  unitPrice     Decimal   @db.Decimal(10, 2) @map("unit_price")
+  discountAmount Decimal  @default(0) @db.Decimal(10, 2) @map("discount_amount")
+  totalAmount   Decimal   @db.Decimal(10, 2) @map("total_amount")
+
+  sale          Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product       Product   @relation(fields: [productId], references: [id])
+
+  @@map("sale_items")
+}
+
+model Purchase {
+  id            String         @id @default(uuid())
+  supplierName  String         @map("supplier_name")
+  supplierContact String?      @map("supplier_contact")
+  totalAmount   Decimal        @db.Decimal(10, 2) @map("total_amount")
+  status        PurchaseStatus @default(PENDING)
+  notes         String?
+  receivedAt    DateTime?      @map("received_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  items         PurchaseItem[]
+
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id          String    @id @default(uuid())
+  purchaseId  String    @map("purchase_id")
+  productId   String    @map("product_id")
+  quantity    Int
+  unitCost    Decimal   @db.Decimal(10, 2) @map("unit_cost")
+  totalCost   Decimal   @db.Decimal(10, 2) @map("total_cost")
+
+  purchase    Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id])
+
+  @@map("purchase_items")
+}
+
+model Discount {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  type        DiscountType
+  value       Decimal     @db.Decimal(10, 2)
+  minAmount   Decimal?    @db.Decimal(10, 2) @map("min_amount")
+  isActive    Boolean     @default(true) @map("is_active")
+  startDate   DateTime?   @map("start_date")
+  endDate     DateTime?   @map("end_date")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@map("discounts")
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  DIGITAL
+}
+
+enum SaleStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PurchaseStatus {
+  PENDING
+  RECEIVED
+  CANCELLED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
