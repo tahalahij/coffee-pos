@@ -13,6 +13,11 @@ export function formatCurrency(amount: number): string {
 }
 
 export function formatDate(date: Date): string {
+  // Check if the date is valid
+  if (!date || isNaN(date.getTime())) {
+    return 'Invalid Date'
+  }
+
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'short',

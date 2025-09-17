@@ -75,7 +75,7 @@ const mockProducts: Product[] = [
   },
 ]
 
-export default function ProductsPage() {
+export default function ProductsContent() {
   const [products, setProducts] = useState<Product[]>(mockProducts)
   const [categories] = useState<Category[]>(mockCategories)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -126,7 +126,7 @@ export default function ProductsPage() {
   const inventoryValue = products.reduce((sum, p) => sum + (p.cost * p.stock), 0)
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 h-full overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -268,26 +268,6 @@ export default function ProductsPage() {
                   </div>
                 </div>
 
-                {/* Availability Status */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Status:</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    product.isAvailable 
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {product.isAvailable ? 'Available' : 'Unavailable'}
-                  </span>
-                </div>
-
-                {/* Profit Margin */}
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Profit Margin</span>
-                  <span className="font-medium text-blue-600">
-                    {(((product.price - product.cost) / product.price) * 100).toFixed(1)}%
-                  </span>
-                </div>
-
                 {/* Actions */}
                 <div className="flex space-x-2 pt-2">
                   <Button variant="outline" size="sm" className="flex-1">
@@ -306,20 +286,6 @@ export default function ProductsPage() {
             </Card>
           )
         })}
-
-        {/* Add Product Card */}
-        <Card
-          className="border-2 border-dashed border-gray-300 hover:border-gray-400 cursor-pointer transition-colors"
-          onClick={() => setIsAddModalOpen(true)}
-        >
-          <CardContent className="flex flex-col items-center justify-center p-6 h-full min-h-[300px]">
-            <Plus className="h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">Add New Product</h3>
-            <p className="text-sm text-gray-500 text-center">
-              Create a new product for your cafe
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Add Product Modal */}

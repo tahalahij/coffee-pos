@@ -1,82 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Filter, Receipt, RefreshCw, Eye } from 'lucide-react'
+import { Search, RefreshCw, Eye, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { useSalesStore, Sale } from '@/hooks/use-sales-store'
+import toast from 'react-hot-toast'
 
-// Define the Sale type interface
-interface Sale {
-  id: string
-  receiptNumber: string
-  totalAmount: number
-  paymentMethod: 'CASH' | 'CARD' | 'DIGITAL'
-  status: 'COMPLETED' | 'REFUNDED' | 'CANCELLED' | 'PENDING'
-  items: Array<{
-    product: { name: string }
-    quantity: number
-    unitPrice: number
-  }>
-  createdAt: Date
-}
-
-// Mock data - in real app this would come from API
-const mockSales: Sale[] = [
-  {
-    id: '1',
-    receiptNumber: 'RCP-20250916-0001',
-    totalAmount: 15.75,
-    paymentMethod: 'CASH',
-    status: 'COMPLETED',
-    items: [
-      { product: { name: 'Cappuccino' }, quantity: 2, unitPrice: 3.75 },
-      { product: { name: 'Croissant' }, quantity: 2, unitPrice: 3.50 },
-      { product: { name: 'Green Tea' }, quantity: 1, unitPrice: 2.25 },
-    ],
-    createdAt: new Date('2025-09-16T10:30:00'),
-  },
-  {
-    id: '2',
-    receiptNumber: 'RCP-20250916-0002',
-    totalAmount: 8.50,
-    paymentMethod: 'CARD',
-    status: 'COMPLETED',
-    items: [
-      { product: { name: 'Latte' }, quantity: 1, unitPrice: 4.25 },
-      { product: { name: 'Blueberry Muffin' }, quantity: 1, unitPrice: 2.75 },
-    ],
-    createdAt: new Date('2025-09-16T11:15:00'),
-  },
-  {
-    id: '3',
-    receiptNumber: 'RCP-20250916-0003',
-    totalAmount: 22.25,
-    paymentMethod: 'DIGITAL',
-    status: 'COMPLETED',
-    items: [
-      { product: { name: 'Turkey Club' }, quantity: 1, unitPrice: 8.50 },
-      { product: { name: 'Americano' }, quantity: 2, unitPrice: 3.00 },
-      { product: { name: 'Espresso' }, quantity: 3, unitPrice: 2.50 },
-    ],
-    createdAt: new Date('2025-09-16T12:45:00'),
-  },
-  {
-    id: '4',
-    receiptNumber: 'RCP-20250916-0004',
-    totalAmount: 12.50,
-    paymentMethod: 'CASH',
-    status: 'REFUNDED',
-    items: [
-      { product: { name: 'Veggie Wrap' }, quantity: 1, unitPrice: 7.25 },
-      { product: { name: 'Earl Grey' }, quantity: 2, unitPrice: 2.50 },
-    ],
-    createdAt: new Date('2025-09-16T14:20:00'),
-  },
-]
-
-export default function SalesPage() {
-  const [sales, setSales] = useState<Sale[]>(mockSales)
+export default function SalesContent() {
+  const { sales, updateSaleStatus } = useSalesStore()
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
@@ -108,13 +41,20 @@ export default function SalesPage() {
     }
   }
 
+  const handleRefund = (saleId: string) => {
+    if (confirm('Are you sure you want to refund this sale?')) {
+      updateSaleStatus(saleId, 'REFUNDED')
+      toast.success('Sale refunded successfully!')
+    }
+  }
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 h-full overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Sales History</h1>
-          <p className="text-gray-500">View and manage all transactions</p>
+          <p className="text-gray-500">View and manage all transactions ({sales.length} total)</p>
         </div>
         <Button variant="outline">
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -190,66 +130,80 @@ export default function SalesPage() {
 
       {/* Sales List */}
       <div className="grid gap-4">
-        {filteredSales.map((sale) => (
-          <Card key={sale.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-4">
-                    <div>
-                      <h3 className="font-semibold text-lg">{sale.receiptNumber}</h3>
-                      <p className="text-sm text-gray-500">
-                        {formatDate(sale.createdAt)}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <span className="text-2xl">{getPaymentMethodIcon(sale.paymentMethod)}</span>
-                      <span className="text-sm font-medium">{sale.paymentMethod}</span>
-                    </div>
-
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(sale.status)}`}>
-                      {sale.status}
-                    </span>
-                  </div>
-
-                  <div className="mt-3">
-                    <p className="text-sm text-gray-600">
-                      {sale.items.length} items: {sale.items.map(item =>
-                        `${item.quantity}x ${item.product.name}`
-                      ).join(', ')}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(sale.totalAmount)}
-                  </p>
-                  <div className="flex space-x-2 mt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedSale(sale)}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      View
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Receipt className="h-4 w-4 mr-1" />
-                      Print
-                    </Button>
-                    {sale.status === 'COMPLETED' && (
-                      <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                        Refund
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
+        {filteredSales.length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Receipt className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">No sales found matching your criteria</p>
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          filteredSales.map((sale) => (
+            <Card key={sale.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-4">
+                      <div>
+                        <h3 className="font-semibold text-lg">{sale.receiptNumber}</h3>
+                        <p className="text-sm text-gray-500">
+                          {formatDate(sale.createdAt)}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <span className="text-2xl">{getPaymentMethodIcon(sale.paymentMethod)}</span>
+                        <span className="text-sm font-medium">{sale.paymentMethod}</span>
+                      </div>
+
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(sale.status)}`}>
+                        {sale.status}
+                      </span>
+                    </div>
+
+                    <div className="mt-3">
+                      <p className="text-sm text-gray-600">
+                        {sale.items.length} items: {sale.items.map(item =>
+                          `${item.quantity}x ${item.product.name}`
+                        ).join(', ')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-green-600">
+                      {formatCurrency(sale.totalAmount)}
+                    </p>
+                    <div className="flex space-x-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedSale(sale)}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Receipt className="h-4 w-4 mr-1" />
+                        Print
+                      </Button>
+                      {sale.status === 'COMPLETED' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                          onClick={() => handleRefund(sale.id)}
+                        >
+                          Refund
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Sale Detail Modal */}
@@ -297,17 +251,45 @@ export default function SalesPage() {
                         </p>
                       </div>
                       <p className="font-medium">
-                        {formatCurrency(item.quantity * item.unitPrice)}
+                        {formatCurrency(item.totalAmount)}
                       </p>
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex justify-between items-center text-lg font-bold">
+                <div className="mt-4 pt-4 border-t space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>Subtotal:</span>
+                    <span>{formatCurrency(selectedSale.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Tax:</span>
+                    <span>{formatCurrency(selectedSale.taxAmount)}</span>
+                  </div>
+                  {selectedSale.discountAmount > 0 && (
+                    <div className="flex justify-between text-sm text-red-600">
+                      <span>Discount:</span>
+                      <span>-{formatCurrency(selectedSale.discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
                     <span>Total:</span>
                     <span>{formatCurrency(selectedSale.totalAmount)}</span>
                   </div>
+                  {selectedSale.cashReceived && (
+                    <>
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Cash Received:</span>
+                        <span>{formatCurrency(selectedSale.cashReceived)}</span>
+                      </div>
+                      {selectedSale.changeGiven && selectedSale.changeGiven > 0 && (
+                        <div className="flex justify-between text-sm text-green-600">
+                          <span>Change Given:</span>
+                          <span>{formatCurrency(selectedSale.changeGiven)}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </div>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, generateReceiptId } from '@/lib/utils'
 import { CartItem } from '@/types'
+import { useSalesStore } from '@/hooks/use-sales-store'
 import toast from 'react-hot-toast'
 
 interface CheckoutModalProps {
@@ -17,9 +18,10 @@ interface CheckoutModalProps {
 }
 
 export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: CheckoutModalProps) {
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'digital'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'DIGITAL'>('CASH')
   const [cashReceived, setCashReceived] = useState<number>(0)
   const [isProcessing, setIsProcessing] = useState(false)
+  const { addSale } = useSalesStore()
 
   if (!isOpen) return null
 
@@ -30,15 +32,31 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
     await new Promise(resolve => setTimeout(resolve, 2000))
 
     const receiptId = generateReceiptId()
+    const subtotal = total / 1.08 // Remove tax to get subtotal
+    const taxAmount = total - subtotal
 
-    // In a real app, this would save to database
+    // Create sale data
     const saleData = {
-      id: receiptId,
-      items,
-      total,
-      payment_method: paymentMethod,
-      created_at: new Date(),
+      receiptNumber: receiptId,
+      subtotal,
+      taxAmount,
+      discountAmount: 0,
+      totalAmount: total,
+      paymentMethod,
+      status: 'COMPLETED' as const,
+      cashReceived: paymentMethod === 'CASH' ? cashReceived : undefined,
+      changeGiven: paymentMethod === 'CASH' ? Math.max(0, cashReceived - total) : undefined,
+      items: items.map(item => ({
+        id: item.id,
+        product: { name: item.product.name, price: item.product.price },
+        quantity: item.quantity,
+        unitPrice: item.price,
+        totalAmount: item.price * item.quantity
+      }))
     }
+
+    // Add to sales store
+    addSale(saleData)
 
     toast.success(`Payment successful! Receipt: ${receiptId}`)
 
@@ -46,8 +64,8 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
     onComplete()
   }
 
-  const change = paymentMethod === 'cash' ? Math.max(0, cashReceived - total) : 0
-  const canProcess = paymentMethod === 'cash' ? cashReceived >= total : true
+  const change = paymentMethod === 'CASH' ? Math.max(0, cashReceived - total) : 0
+  const canProcess = paymentMethod === 'CASH' ? cashReceived >= total : true
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -82,24 +100,24 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
             <h3 className="font-medium mb-3">Payment Method</h3>
             <div className="grid grid-cols-3 gap-2">
               <Button
-                variant={paymentMethod === 'cash' ? 'default' : 'outline'}
-                onClick={() => setPaymentMethod('cash')}
+                variant={paymentMethod === 'CASH' ? 'default' : 'outline'}
+                onClick={() => setPaymentMethod('CASH')}
                 className="flex flex-col items-center p-4 h-auto"
               >
                 <Banknote className="h-6 w-6 mb-1" />
                 <span className="text-xs">Cash</span>
               </Button>
               <Button
-                variant={paymentMethod === 'card' ? 'default' : 'outline'}
-                onClick={() => setPaymentMethod('card')}
+                variant={paymentMethod === 'CARD' ? 'default' : 'outline'}
+                onClick={() => setPaymentMethod('CARD')}
                 className="flex flex-col items-center p-4 h-auto"
               >
                 <CreditCard className="h-6 w-6 mb-1" />
                 <span className="text-xs">Card</span>
               </Button>
               <Button
-                variant={paymentMethod === 'digital' ? 'default' : 'outline'}
-                onClick={() => setPaymentMethod('digital')}
+                variant={paymentMethod === 'DIGITAL' ? 'default' : 'outline'}
+                onClick={() => setPaymentMethod('DIGITAL')}
                 className="flex flex-col items-center p-4 h-auto"
               >
                 <Smartphone className="h-6 w-6 mb-1" />
@@ -109,7 +127,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
           </div>
 
           {/* Cash Payment Details */}
-          {paymentMethod === 'cash' && (
+          {paymentMethod === 'CASH' && (
             <div>
               <label className="block text-sm font-medium mb-2">Cash Received</label>
               <input

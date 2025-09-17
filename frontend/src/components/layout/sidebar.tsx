@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -16,20 +14,25 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { TabType } from '@/app/page'
 
 const navigation = [
-  { name: 'POS', href: '/', icon: ShoppingCart },
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Products', href: '/products', icon: Package },
-  { name: 'Categories', href: '/categories', icon: Archive },
-  { name: 'Sales', href: '/sales', icon: Receipt },
-  { name: 'Purchases', href: '/purchases', icon: Users },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'POS', key: 'pos' as TabType, icon: ShoppingCart },
+  { name: 'Dashboard', key: 'dashboard' as TabType, icon: LayoutDashboard },
+  { name: 'Products', key: 'products' as TabType, icon: Package },
+  { name: 'Categories', key: 'categories' as TabType, icon: Archive },
+  { name: 'Sales', key: 'sales' as TabType, icon: Receipt },
+  { name: 'Purchases', key: 'purchases' as TabType, icon: Users },
+  { name: 'Analytics', key: 'analytics' as TabType, icon: BarChart3 },
+  { name: 'Settings', key: 'settings' as TabType, icon: Settings },
 ]
 
-export function Sidebar() {
-  const pathname = usePathname()
+interface SidebarProps {
+  activeTab: TabType
+  onTabChange: (tab: TabType) => void
+}
+
+export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   return (
@@ -49,21 +52,21 @@ export function Sidebar() {
       <nav className="flex-1 px-4 py-6 space-y-1">
         {navigation.map((item) => {
           const Icon = item.icon
-          const isActive = pathname === item.href
+          const isActive = activeTab === item.key
 
           return (
-            <Link key={item.name} href={item.href}>
-              <Button
-                variant={isActive ? "default" : "ghost"}
-                className={cn(
-                  "w-full justify-start",
-                  collapsed ? "px-2" : "px-4"
-                )}
-              >
-                <Icon className={cn("h-5 w-5", !collapsed && "mr-3")} />
-                {!collapsed && item.name}
-              </Button>
-            </Link>
+            <Button
+              key={item.key}
+              variant={isActive ? "default" : "ghost"}
+              className={cn(
+                "w-full justify-start",
+                collapsed ? "px-2" : "px-4"
+              )}
+              onClick={() => onTabChange(item.key)}
+            >
+              <Icon className={cn("h-5 w-5", !collapsed && "mr-3")} />
+              {!collapsed && item.name}
+            </Button>
           )
         })}
       </nav>

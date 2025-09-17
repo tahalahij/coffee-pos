@@ -1,0 +1,144 @@
+'use client'
+
+import { useState } from 'react'
+import { X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+
+interface Category {
+  name: string
+  description?: string
+  color: string
+  isActive: boolean
+}
+
+interface AddCategoryModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onAdd: (category: Category) => void
+}
+
+const colorOptions = [
+  '#8B4513', // Brown (Coffee)
+  '#228B22', // Forest Green (Tea)
+  '#DAA520', // Goldenrod (Pastries)
+  '#CD853F', // Peru (Sandwiches)
+  '#4682B4', // Steel Blue
+  '#DC143C', // Crimson
+  '#FF8C00', // Dark Orange
+  '#9932CC', // Dark Orchid
+  '#008B8B', // Dark Cyan
+  '#556B2F', // Dark Olive Green
+]
+
+export function AddCategoryModal({ isOpen, onClose, onAdd }: AddCategoryModalProps) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [selectedColor, setSelectedColor] = useState(colorOptions[0])
+  const [isActive, setIsActive] = useState(true)
+
+  if (!isOpen) return null
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!name.trim()) {
+      alert('Please enter a category name')
+      return
+    }
+
+    onAdd({
+      name: name.trim(),
+      description: description.trim() || undefined,
+      color: selectedColor,
+      isActive
+    })
+
+    // Reset form
+    setName('')
+    setDescription('')
+    setSelectedColor(colorOptions[0])
+    setIsActive(true)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-bold">Add New Category</h2>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Category Name */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Category Name *</label>
+            <Input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter category name"
+              required
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Description</label>
+            <Input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Enter category description (optional)"
+            />
+          </div>
+
+          {/* Color Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Color</label>
+            <div className="grid grid-cols-5 gap-2">
+              {colorOptions.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`w-10 h-10 rounded-full border-2 ${
+                    selectedColor === color ? 'border-gray-400' : 'border-gray-200'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  onClick={() => setSelectedColor(color)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Status */}
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="isActive"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="isActive" className="text-sm font-medium">
+              Active (available for use)
+            </label>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-4">
+            <Button type="submit" className="flex-1">
+              Add Category
+            </Button>
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

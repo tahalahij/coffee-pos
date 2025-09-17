@@ -124,11 +124,11 @@ export class AnalyticsService {
       include: {
         category: true,
         saleItems: {
-          include: {
+          where: {
             sale: {
-              where: { status: 'COMPLETED' },
-            },
-          },
+              status: 'COMPLETED'
+            }
+          }
         },
       },
     });
