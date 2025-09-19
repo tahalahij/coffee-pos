@@ -81,4 +81,10 @@ export class DiscountsController {
   remove(@Param('id') id: string) {
     return this.discountsService.remove(id);
   }
+
+  @Post('generate')
+  @ApiOperation({ summary: 'Generate a discount code for a customer' })
+  async generateCode(@Body() body: { customerId: string; discountId: string; expiresAt: string }) {
+    return this.discountsService.generateCodeForCustomer(body.customerId, body.discountId, body.expiresAt);
+  }
 }

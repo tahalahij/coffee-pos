@@ -40,6 +40,11 @@ export class CreateSaleItemDto {
 }
 
 export class CreateSaleDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
   @ApiProperty({ type: [CreateSaleItemDto] })
   @IsArray()
   @ValidateNested({ each: true })

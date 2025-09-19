@@ -1,9 +1,15 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import axios from 'axios'
 
 export interface Sale {
   id: string
   receiptNumber: string
+  customer?: {
+    id: string
+    name: string
+    phone: string
+  }
   totalAmount: number
   subtotal: number
   taxAmount: number
@@ -24,6 +30,9 @@ export interface Sale {
 
 interface SalesStore {
   sales: Sale[]
+  loading: boolean
+  error: string | null
+  fetchSales: () => Promise<void>
   addSale: (sale: Omit<Sale, 'id' | 'createdAt'>) => void
   updateSaleStatus: (saleId: string, status: Sale['status']) => void
   getTodaysSales: () => Sale[]
@@ -34,36 +43,29 @@ interface SalesStore {
 export const useSalesStore = create<SalesStore>()(
   persist(
     (set, get) => ({
-      sales: [
-        // Initial mock data
-        {
-          id: '1',
-          receiptNumber: 'RCP-20250916-0001',
-          totalAmount: 15.75,
-          subtotal: 14.58,
-          taxAmount: 1.17,
-          discountAmount: 0,
-          paymentMethod: 'CASH',
-          status: 'COMPLETED',
-          items: [
-            {
-              id: '1',
-              product: { name: 'Cappuccino', price: 3.75 },
-              quantity: 2,
-              unitPrice: 3.75,
-              totalAmount: 7.50
-            },
-            {
-              id: '2',
-              product: { name: 'Croissant', price: 3.50 },
-              quantity: 2,
-              unitPrice: 3.50,
-              totalAmount: 7.00
-            },
-          ],
-          createdAt: new Date('2025-09-16T10:30:00'),
+      sales: [],
+      loading: false,
+      error: null,
+
+      fetchSales: async () => {
+        try {
+          set({ loading: true, error: null })
+          const response = await axios.get('/api/sales')
+          set({
+            sales: response.data.map((sale: any) => ({
+              ...sale,
+              createdAt: new Date(sale.createdAt)
+            })),
+            loading: false
+          })
+        } catch (error) {
+          console.error('Error fetching sales:', error)
+          set({
+            error: 'Failed to fetch sales',
+            loading: false
+          })
         }
-      ],
+      },
 
       addSale: (saleData) => {
         const newSale: Sale = {

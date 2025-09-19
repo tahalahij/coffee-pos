@@ -85,7 +85,7 @@ export default function SettingsContent() {
               <Input
                 value={settings.phone}
                 onChange={(e) => handleInputChange('phone', e.target.value)}
-                placeholder="Enter phone number"
+                placeholder="09123456789"
               />
             </div>
 

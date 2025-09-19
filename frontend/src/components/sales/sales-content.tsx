@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, RefreshCw, Eye, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -9,10 +9,14 @@ import { useSalesStore, Sale } from '@/hooks/use-sales-store'
 import toast from 'react-hot-toast'
 
 export default function SalesContent() {
-  const { sales, updateSaleStatus } = useSalesStore()
+  const { sales, loading, error, fetchSales, updateSaleStatus } = useSalesStore()
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+
+  useEffect(() => {
+    fetchSales()
+  }, [fetchSales])
 
   const filteredSales = sales.filter(sale => {
     const matchesSearch = sale.receiptNumber.toLowerCase().includes(searchTerm.toLowerCase())
@@ -48,6 +52,11 @@ export default function SalesContent() {
     }
   }
 
+  const handleRefresh = async () => {
+    await fetchSales()
+    toast.success('Sales data refreshed!')
+  }
+
   return (
     <div className="p-6 space-y-6 h-full overflow-y-auto">
       {/* Header */}
@@ -56,11 +65,19 @@ export default function SalesContent() {
           <h1 className="text-3xl font-bold text-gray-900">Sales History</h1>
           <p className="text-gray-500">View and manage all transactions ({sales.length} total)</p>
         </div>
-        <Button variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
+        <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
+
+      {error && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-4">
+            <p className="text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -149,6 +166,11 @@ export default function SalesContent() {
                         <p className="text-sm text-gray-500">
                           {formatDate(sale.createdAt)}
                         </p>
+                        {sale.customer && (
+                          <p className="text-sm text-blue-600 font-medium">
+                            Customer: {sale.customer.name} ({sale.customer.phone})
+                          </p>
+                        )}
                       </div>
 
                       <div className="flex items-center space-x-2">

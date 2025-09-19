@@ -42,6 +42,14 @@ npm run db:seed
 npm run dev
 ```
 
+4. after updating models
+in your backend directory.
+```bash
+npx prisma format 
+npx prisma generate
+npx prisma migrate dev
+```
+
 ## Project Structure
 
 ```
@@ -51,3 +59,4 @@ cafe-pos/
 ├── shared/           # Shared types and utilities
 └── docs/             # Documentation
 ```
+

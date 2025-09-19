@@ -19,6 +19,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",
+    "axios": "^1.12.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
@@ -36,9 +37,9 @@
     "zustand": "^4.5.4"
   },
   "devDependencies": {
+    "@types/minimatch": "^5.1.2",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
-    "tailwindcss-animate": "^1.0.7",
-    "@types/minimatch": "^5.1.2"
+    "tailwindcss-animate": "^1.0.7"
   }
 }

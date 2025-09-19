@@ -186,4 +186,20 @@ export class DiscountsService {
       },
     });
   }
+
+  async generateCodeForCustomer(customerId: string, discountId: string, expiresAt: string) {
+    const code = Array.from({ length: 8 }, () =>
+      Math.floor(Math.random() * 36).toString(36).toUpperCase()
+    ).join('');
+    const expires = new Date(expiresAt);
+    return this.prisma.discountCode.create({
+      data: {
+        code,
+        customerId,
+        discountId,
+        expiresAt: expires,
+        isUsed: false,
+      },
+    });
+  }
 }

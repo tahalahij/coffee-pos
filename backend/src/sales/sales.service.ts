@@ -31,6 +31,7 @@ export class SalesService {
       const newSale = await prisma.sale.create({
         data: {
           receiptNumber,
+          customerId: createSaleDto.customerId,
           subtotal: createSaleDto.subtotal,
           taxAmount: createSaleDto.taxAmount || 0,
           discountAmount: createSaleDto.discountAmount || 0,
@@ -97,6 +98,13 @@ export class SalesService {
     return this.prisma.sale.findMany({
       where,
       include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
         items: {
           include: {
             product: {
@@ -123,6 +131,13 @@ export class SalesService {
     const sale = await this.prisma.sale.findUnique({
       where: { id },
       include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
         items: {
           include: {
             product: {

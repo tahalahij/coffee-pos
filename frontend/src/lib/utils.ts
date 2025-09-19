@@ -12,19 +12,23 @@ export function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
-export function formatDate(date: Date): string {
-  // Check if the date is valid
-  if (!date || isNaN(date.getTime())) {
-    return 'Invalid Date'
+export function formatDate(date: string | number | Date): string {
+  let d: Date;
+  if (date instanceof Date) {
+    d = date;
+  } else {
+    d = new Date(date);
   }
-
+  if (!d || isNaN(d.getTime())) {
+    return 'Invalid Date';
+  }
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(date)
+  }).format(d);
 }
 
 export function generateReceiptId(): string {

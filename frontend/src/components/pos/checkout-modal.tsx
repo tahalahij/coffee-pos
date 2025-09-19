@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { X, CreditCard, Banknote, Smartphone, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, generateReceiptId } from '@/lib/utils'
 import { CartItem } from '@/types'
 import { useSalesStore } from '@/hooks/use-sales-store'
 import toast from 'react-hot-toast'
+import axios from 'axios'
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -21,6 +21,11 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'DIGITAL'>('CASH')
   const [cashReceived, setCashReceived] = useState<number>(0)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [customer, setCustomer] = useState<any>(null)
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false)
+  const [customerError, setCustomerError] = useState('')
   const { addSale } = useSalesStore()
 
   if (!isOpen) return null
@@ -46,6 +51,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
       status: 'COMPLETED' as const,
       cashReceived: paymentMethod === 'CASH' ? cashReceived : undefined,
       changeGiven: paymentMethod === 'CASH' ? Math.max(0, cashReceived - total) : undefined,
+      customerId: customer ? customer.id : undefined,
       items: items.map(item => ({
         id: item.id,
         product: { name: item.product.name, price: item.product.price },
@@ -67,6 +73,35 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
   const change = paymentMethod === 'CASH' ? Math.max(0, cashReceived - total) : 0
   const canProcess = paymentMethod === 'CASH' ? cashReceived >= total : true
 
+  const handleCustomerSearch = async () => {
+    setCustomerSearchLoading(true)
+    setCustomerError('')
+    setCustomer(null)
+    try {
+      const res = await axios.get(`/api/customers/search?q=${encodeURIComponent(customerPhone)}`)
+      if (res.data.length > 0) {
+        setCustomer(res.data[0])
+        setCustomerName(res.data[0].name)
+      } else {
+        setCustomer(null)
+        setCustomerError('No customer found. Please enter name to add.')
+      }
+    } catch (e) {
+      setCustomerError('Error searching customer')
+    }
+    setCustomerSearchLoading(false)
+  }
+
+  const handleAddCustomer = async () => {
+    setCustomerError('')
+    try {
+      const res = await axios.post('/api/customers', { name: customerName, phone: customerPhone })
+      setCustomer(res.data)
+    } catch (e) {
+      setCustomerError('Error adding customer')
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
@@ -78,6 +113,42 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
         </div>
 
         <div className="p-6 space-y-6">
+          {/* Customer Search/Add */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Customer Phone</label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={customerPhone}
+                onChange={e => setCustomerPhone(e.target.value)}
+                className="border px-2 py-1 rounded w-full"
+                placeholder="09123456789"
+              />
+              <Button type="button" onClick={handleCustomerSearch} disabled={customerSearchLoading}>
+                {customerSearchLoading ? 'Searching...' : 'Search'}
+              </Button>
+            </div>
+            {customer ? (
+              <div className="mb-2 text-green-700">Customer: {customer.name}</div>
+            ) : customerError ? (
+              <div className="mb-2 text-red-600">{customerError}</div>
+            ) : null}
+            {!customer && customerError && (
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                  className="border px-2 py-1 rounded w-full"
+                  placeholder="Enter customer name"
+                />
+                <Button type="button" onClick={handleAddCustomer} disabled={!customerName}>
+                  Add
+                </Button>
+              </div>
+            )}
+          </div>
+
           {/* Order Summary */}
           <div>
             <h3 className="font-medium mb-3">Order Summary</h3>
