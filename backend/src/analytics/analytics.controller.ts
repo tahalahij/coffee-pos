@@ -1,39 +1,43 @@
-import { Controller, Get, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Query,
+  Param,
+  BadRequestException,
+} from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 
-@ApiTags('analytics')
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('dashboard')
-  @ApiOperation({ summary: 'Get dashboard overview with key metrics' })
-  @ApiResponse({ status: 200, description: 'Dashboard overview retrieved successfully' })
-  getDashboardOverview() {
-    return this.analyticsService.getDashboardOverview();
+  async getDashboardStats() {
+    return this.analyticsService.getDashboardStats();
   }
 
-  @Get('sales')
-  @ApiOperation({ summary: 'Get sales analytics for specified period' })
-  @ApiQuery({ name: 'days', required: false, description: 'Number of days to analyze (default: 30)' })
-  @ApiResponse({ status: 200, description: 'Sales analytics retrieved successfully' })
-  getSalesAnalytics(@Query('days') days?: string) {
-    const daysNumber = days ? parseInt(days, 10) : 30;
-    return this.analyticsService.getSalesAnalytics(daysNumber);
+  @Get('sales/:period')
+  async getSalesAnalytics(@Param('period') period: string) {
+    if (!['today', 'week', 'month'].includes(period)) {
+      throw new BadRequestException('Invalid period. Must be today, week, or month');
+    }
+    return this.analyticsService.getSalesAnalytics(period as 'today' | 'week' | 'month');
   }
 
-  @Get('products')
-  @ApiOperation({ summary: 'Get product performance analytics' })
-  @ApiResponse({ status: 200, description: 'Product performance retrieved successfully' })
-  getProductPerformance() {
-    return this.analyticsService.getProductPerformance();
+  @Get('products/top')
+  async getTopProducts(@Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.analyticsService.getTopProducts(limitNum);
   }
 
-  @Get('inventory')
-  @ApiOperation({ summary: 'Get inventory report and analytics' })
-  @ApiResponse({ status: 200, description: 'Inventory report retrieved successfully' })
-  getInventoryReport() {
-    return this.analyticsService.getInventoryReport();
+  @Get('customers/top')
+  async getTopCustomers(@Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.analyticsService.getTopCustomers(limitNum);
+  }
+
+  @Get('revenue/trends')
+  async getRevenueTrends() {
+    return this.analyticsService.getRevenueTrends();
   }
 }

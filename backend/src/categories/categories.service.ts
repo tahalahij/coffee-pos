@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 
@@ -7,6 +7,20 @@ export class CategoriesService {
   constructor(private prisma: PrismaService) {}
 
   async create(createCategoryDto: CreateCategoryDto) {
+    // Validate required fields
+    if (!createCategoryDto.name || createCategoryDto.name.trim() === '') {
+      throw new BadRequestException('Category name is required');
+    }
+
+    // Check for duplicate category name
+    const existingCategory = await this.prisma.category.findUnique({
+      where: { name: createCategoryDto.name },
+    });
+
+    if (existingCategory) {
+      throw new ConflictException('Category name already exists');
+    }
+
     return this.prisma.category.create({
       data: createCategoryDto,
     });
@@ -50,6 +64,20 @@ export class CategoriesService {
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto) {
     await this.findOne(id); // Check if exists
+
+    // Check for duplicate category name (excluding current category)
+    if (updateCategoryDto.name) {
+      const existingCategory = await this.prisma.category.findFirst({
+        where: {
+          name: updateCategoryDto.name,
+          NOT: { id },
+        },
+      });
+
+      if (existingCategory) {
+        throw new ConflictException('Category name already exists');
+      }
+    }
 
     return this.prisma.category.update({
       where: { id },

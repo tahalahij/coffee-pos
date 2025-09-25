@@ -11,9 +11,30 @@ export class PurchasesService {
   ) {}
 
   async create(createPurchaseDto: CreatePurchaseDto) {
-    // Validate products exist
+    // Validate required fields
+    if (!createPurchaseDto.supplierName || createPurchaseDto.supplierName.trim() === '') {
+      throw new BadRequestException('Supplier name is required');
+    }
+
+    if (!createPurchaseDto.items || createPurchaseDto.items.length === 0) {
+      throw new BadRequestException('At least one item is required');
+    }
+
+    // Validate all products exist
     for (const item of createPurchaseDto.items) {
       await this.productsService.findOne(item.productId);
+    }
+
+    // Calculate total amount from items if not provided or validate if provided
+    const calculatedTotal = createPurchaseDto.items.reduce((sum, item) => {
+      return sum + (item.unitCost * item.quantity);
+    }, 0);
+
+    const totalAmount = createPurchaseDto.totalAmount || calculatedTotal;
+
+    // Validate the provided total matches calculated total (within small margin for floating point)
+    if (createPurchaseDto.totalAmount && Math.abs(createPurchaseDto.totalAmount - calculatedTotal) > 0.01) {
+      throw new BadRequestException('Total amount does not match sum of item costs');
     }
 
     // Create purchase with items in a transaction
@@ -22,7 +43,7 @@ export class PurchasesService {
         data: {
           supplierName: createPurchaseDto.supplierName,
           supplierContact: createPurchaseDto.supplierContact,
-          totalAmount: createPurchaseDto.totalAmount,
+          totalAmount: totalAmount,
           notes: createPurchaseDto.notes,
           status: 'PENDING',
         },

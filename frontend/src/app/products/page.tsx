@@ -1,116 +1,54 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Edit, Trash2, Package, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AddProductModal } from '@/components/products/add-product-modal'
 import { formatCurrency } from '@/lib/utils'
+import { useProductStore } from '@/hooks/use-product-store'
+import { useCategoryStore } from '@/hooks/use-category-store'
 import toast from 'react-hot-toast'
 
-interface Product {
-  id: string
-  name: string
-  description: string
-  price: number
-  cost: number
-  stock: number
-  lowStockAlert: number
-  categoryId: string
-  category: { name: string; color: string }
-  isAvailable: boolean
-}
-
-interface Category {
-  id: string
-  name: string
-  color: string
-}
-
-// Mock categories data
-const mockCategories: Category[] = [
-  { id: '1', name: 'Coffee', color: '#8B4513' },
-  { id: '2', name: 'Tea', color: '#228B22' },
-  { id: '3', name: 'Pastries', color: '#DAA520' },
-  { id: '4', name: 'Sandwiches', color: '#CD853F' },
-]
-
-// Mock products data
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Espresso',
-    description: 'Rich and bold espresso shot',
-    price: 2.50,
-    cost: 0.75,
-    stock: 100,
-    lowStockAlert: 20,
-    categoryId: '1',
-    category: { name: 'Coffee', color: '#8B4513' },
-    isAvailable: true,
-  },
-  {
-    id: '2',
-    name: 'Cappuccino',
-    description: 'Espresso with steamed milk and foam',
-    price: 3.75,
-    cost: 1.25,
-    stock: 15,
-    lowStockAlert: 20,
-    categoryId: '1',
-    category: { name: 'Coffee', color: '#8B4513' },
-    isAvailable: true,
-  },
-  {
-    id: '3',
-    name: 'Croissant',
-    description: 'Buttery and flaky croissant',
-    price: 3.50,
-    cost: 1.20,
-    stock: 25,
-    lowStockAlert: 5,
-    categoryId: '3',
-    category: { name: 'Pastries', color: '#DAA520' },
-    isAvailable: true,
-  },
-]
-
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>(mockProducts)
-  const [categories] = useState<Category[]>(mockCategories)
+  const {
+    products,
+    loading: productsLoading,
+    fetchProducts,
+    toggleAvailability,
+    deleteProduct
+  } = useProductStore()
+
+  const {
+    categories,
+    loading: categoriesLoading,
+    fetchCategories
+  } = useCategoryStore()
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
 
-  const handleAddProduct = (newProductData: Omit<Product, 'id' | 'category'>) => {
-    const category = categories.find(c => c.id === newProductData.categoryId)
-    if (!category) {
-      toast.error('Invalid category selected!')
-      return
-    }
+  useEffect(() => {
+    fetchProducts()
+    fetchCategories()
+  }, [fetchProducts, fetchCategories])
 
-    const newProduct: Product = {
-      ...newProductData,
-      id: Date.now().toString(),
-      category: { name: category.name, color: category.color },
+  const handleToggleAvailability = async (productId: string) => {
+    try {
+      await toggleAvailability(productId)
+      toast.success('Product availability updated!')
+    } catch (error) {
+      toast.error('Failed to update product availability')
     }
-
-    setProducts(prev => [...prev, newProduct])
   }
 
-  const handleToggleAvailability = (productId: string) => {
-    setProducts(prev =>
-      prev.map(product =>
-        product.id === productId
-          ? { ...product, isAvailable: !product.isAvailable }
-          : product
-      )
-    )
-    toast.success('Product availability updated!')
-  }
-
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
     if (confirm('Are you sure you want to delete this product?')) {
-      setProducts(prev => prev.filter(product => product.id !== productId))
-      toast.success('Product deleted successfully!')
+      try {
+        await deleteProduct(productId)
+        toast.success('Product deleted successfully!')
+      } catch (error) {
+        toast.error('Failed to delete product')
+      }
     }
   }
 
@@ -124,6 +62,19 @@ export default function ProductsPage() {
   const lowStockProducts = products.filter(p => p.stock <= p.lowStockAlert && p.stock > 0).length
   const outOfStockProducts = products.filter(p => p.stock === 0).length
   const inventoryValue = products.reduce((sum, p) => sum + (p.cost * p.stock), 0)
+
+  if (productsLoading || categoriesLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-500">Loading products and categories...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -326,7 +277,10 @@ export default function ProductsPage() {
       <AddProductModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onAdd={handleAddProduct}
+        onAdd={(newProductData) => {
+          // Refresh products list after adding
+          fetchProducts()
+        }}
         categories={categories}
       />
     </div>

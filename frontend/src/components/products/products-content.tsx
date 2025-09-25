@@ -1,129 +1,72 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Edit, Trash2, Package, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AddProductModal } from '@/components/products/add-product-modal'
 import { formatCurrency } from '@/lib/utils'
-import toast from 'react-hot-toast'
-
-interface Product {
-  id: string
-  name: string
-  description: string
-  price: number
-  cost: number
-  stock: number
-  lowStockAlert: number
-  categoryId: string
-  category: { name: string; color: string }
-  isAvailable: boolean
-}
-
-interface Category {
-  id: string
-  name: string
-  color: string
-}
-
-// Mock categories data
-const mockCategories: Category[] = [
-  { id: '1', name: 'Coffee', color: '#8B4513' },
-  { id: '2', name: 'Tea', color: '#228B22' },
-  { id: '3', name: 'Pastries', color: '#DAA520' },
-  { id: '4', name: 'Sandwiches', color: '#CD853F' },
-]
-
-// Mock products data
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Espresso',
-    description: 'Rich and bold espresso shot',
-    price: 2.50,
-    cost: 0.75,
-    stock: 100,
-    lowStockAlert: 20,
-    categoryId: '1',
-    category: { name: 'Coffee', color: '#8B4513' },
-    isAvailable: true,
-  },
-  {
-    id: '2',
-    name: 'Cappuccino',
-    description: 'Espresso with steamed milk and foam',
-    price: 3.75,
-    cost: 1.25,
-    stock: 15,
-    lowStockAlert: 20,
-    categoryId: '1',
-    category: { name: 'Coffee', color: '#8B4513' },
-    isAvailable: true,
-  },
-  {
-    id: '3',
-    name: 'Croissant',
-    description: 'Buttery and flaky croissant',
-    price: 3.50,
-    cost: 1.20,
-    stock: 25,
-    lowStockAlert: 5,
-    categoryId: '3',
-    category: { name: 'Pastries', color: '#DAA520' },
-    isAvailable: true,
-  },
-]
+import { useProductStore } from '@/hooks/use-product-store'
+import { useCategoryStore } from '@/hooks/use-category-store'
+import type { Product } from '@/lib/services'
 
 export default function ProductsContent() {
-  const [products, setProducts] = useState<Product[]>(mockProducts)
-  const [categories] = useState<Category[]>(mockCategories)
+  const {
+    products,
+    loading,
+    error,
+    fetchProducts,
+    deleteProduct,
+    toggleAvailability,
+    getLowStockProducts
+  } = useProductStore()
+
+  const {
+    categories,
+    fetchCategories
+  } = useCategoryStore()
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
 
-  const handleAddProduct = (newProductData: Omit<Product, 'id' | 'category'>) => {
-    const category = categories.find(c => c.id === newProductData.categoryId)
-    if (!category) {
-      toast.error('Invalid category selected!')
-      return
-    }
+  useEffect(() => {
+    fetchProducts()
+    fetchCategories()
+  }, [fetchProducts, fetchCategories])
 
-    const newProduct: Product = {
-      ...newProductData,
-      id: Date.now().toString(),
-      category: { name: category.name, color: category.color },
-    }
-
-    setProducts(prev => [...prev, newProduct])
-  }
-
-  const handleToggleAvailability = (productId: string) => {
-    setProducts(prev =>
-      prev.map(product =>
-        product.id === productId
-          ? { ...product, isAvailable: !product.isAvailable }
-          : product
-      )
-    )
-    toast.success('Product availability updated!')
-  }
-
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
     if (confirm('Are you sure you want to delete this product?')) {
-      setProducts(prev => prev.filter(product => product.id !== productId))
-      toast.success('Product deleted successfully!')
+      await deleteProduct(productId)
     }
   }
 
-  const getStockStatus = (stock: number, lowStockAlert: number) => {
-    if (stock === 0) return { status: 'out', color: 'text-red-600', bg: 'bg-red-50' }
-    if (stock <= lowStockAlert) return { status: 'low', color: 'text-orange-600', bg: 'bg-orange-50' }
-    return { status: 'good', color: 'text-green-600', bg: 'bg-green-50' }
+  const handleToggleAvailability = async (productId: string) => {
+    await toggleAvailability(productId)
   }
 
+  const lowStockProducts = getLowStockProducts()
   const totalProducts = products.length
-  const lowStockProducts = products.filter(p => p.stock <= p.lowStockAlert && p.stock > 0).length
-  const outOfStockProducts = products.filter(p => p.stock === 0).length
-  const inventoryValue = products.reduce((sum, p) => sum + (p.cost * p.stock), 0)
+  const availableProducts = products.filter(p => p.isAvailable).length
+  const totalValue = products.reduce((sum, p) => sum + (p.stock * p.cost), 0)
+
+  if (loading && products.length === 0) {
+    return (
+      <div className="p-6 space-y-6 h-full overflow-y-auto">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-gray-500">Loading products...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && products.length === 0) {
+    return (
+      <div className="p-6 space-y-6 h-full overflow-y-auto">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-red-500">{error}</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6 h-full overflow-y-auto">
@@ -131,168 +74,187 @@ export default function ProductsContent() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500">Manage your cafe's product inventory</p>
+          <p className="text-gray-500">Manage your product inventory and pricing</p>
         </div>
-        <Button onClick={() => setIsAddModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Product
+        <Button onClick={() => setIsAddModalOpen(true)} className="flex items-center space-x-2">
+          <Plus className="h-4 w-4" />
+          <span>Add Product</span>
         </Button>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <Package className="h-8 w-8 text-blue-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Total Products</p>
-                <p className="text-2xl font-bold text-gray-900">{totalProducts}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalProducts}</div>
+            <p className="text-xs text-muted-foreground">
+              {availableProducts} available
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <AlertTriangle className="h-8 w-8 text-orange-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Low Stock</p>
-                <p className="text-2xl font-bold text-orange-600">{lowStockProducts}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{lowStockProducts.length}</div>
+            <p className="text-xs text-red-500">
+              Items need restocking
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <div className="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center">
-                <span className="text-red-600 font-bold">0</span>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Out of Stock</p>
-                <p className="text-2xl font-bold text-red-600">{outOfStockProducts}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalValue)}</div>
+            <p className="text-xs text-muted-foreground">
+              At cost price
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
-                <span className="text-green-600 font-bold">$</span>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Inventory Value</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(inventoryValue)}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Categories</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{categories.filter(c => c.isActive).length}</div>
+            <p className="text-xs text-muted-foreground">
+              Active categories
+            </p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Low Stock Alert */}
+      {lowStockProducts.length > 0 && (
+        <Card className="border-red-200 bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-red-800 flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5" />
+              <span>Low Stock Alert</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-red-700 text-sm mb-2">
+              The following products are running low on stock:
+            </p>
+            <div className="space-y-1">
+              {lowStockProducts.map(product => (
+                <div key={product.id} className="text-sm text-red-600">
+                  <span className="font-medium">{product.name}</span> -
+                  <span className="ml-1">{product.stock} left (Alert at {product.lowStockAlert})</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Products Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((product) => {
-          const stockStatus = getStockStatus(product.stock, product.lowStockAlert)
-
-          return (
-            <Card key={product.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{product.name}</CardTitle>
-                    <p className="text-sm text-gray-500 mt-1">{product.description}</p>
-                  </div>
-                  <div className="flex space-x-1">
-                    <Button variant="ghost" size="sm">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700"
-                      onClick={() => handleDeleteProduct(product.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+        {products.map((product: Product) => (
+          <Card key={product.id} className={`${!product.isAvailable ? 'opacity-60' : ''}`}>
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-lg">{product.name}</CardTitle>
+                  <p className="text-sm text-gray-500 mt-1">{product.description}</p>
                 </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {/* Category Badge */}
-                <div className="flex items-center space-x-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: product.category.color }}
-                  />
-                  <span className="text-sm text-gray-600">{product.category.name}</span>
-                </div>
-
-                {/* Price Information */}
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-sm text-gray-500">Selling Price</p>
-                    <p className="text-xl font-bold text-green-600">
-                      {formatCurrency(product.price)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-500">Cost</p>
-                    <p className="text-lg font-medium">
-                      {formatCurrency(product.cost)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Stock Information */}
-                <div className={`p-3 rounded-lg ${stockStatus.bg}`}>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Stock Level</span>
-                    <span className={`text-lg font-bold ${stockStatus.color}`}>
-                      {product.stock}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center mt-1">
-                    <span className="text-xs text-gray-500">Alert at: {product.lowStockAlert}</span>
-                    {stockStatus.status === 'low' && (
-                      <span className="text-xs text-orange-600 font-medium">LOW STOCK</span>
-                    )}
-                    {stockStatus.status === 'out' && (
-                      <span className="text-xs text-red-600 font-medium">OUT OF STOCK</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex space-x-2 pt-2">
-                  <Button variant="outline" size="sm" className="flex-1">
-                    Adjust Stock
+                <div className="flex items-center space-x-1 ml-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleToggleAvailability(product.id)}
+                    className={product.isAvailable ? 'text-green-600' : 'text-gray-400'}
+                  >
+                    <Package className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Edit className="h-4 w-4" />
                   </Button>
                   <Button
-                    variant={product.isAvailable ? "outline" : "default"}
+                    variant="ghost"
                     size="sm"
-                    className="flex-1"
-                    onClick={() => handleToggleAvailability(product.id)}
+                    onClick={() => handleDeleteProduct(product.id)}
+                    className="text-red-600 hover:text-red-700"
                   >
-                    {product.isAvailable ? 'Disable' : 'Enable'}
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">Price</span>
+                <span className="font-semibold">{formatCurrency(product.price)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">Cost</span>
+                <span className="text-sm">{formatCurrency(product.cost)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">Stock</span>
+                <span className={`text-sm font-medium ${
+                  product.stock <= product.lowStockAlert ? 'text-red-600' : 'text-green-600'
+                }`}>
+                  {product.stock} units
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">Category</span>
+                <span
+                  className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                  style={{ backgroundColor: product.category.color }}
+                >
+                  {product.category.name}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">Status</span>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  product.isAvailable 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {product.isAvailable ? 'Available' : 'Unavailable'}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Add Product Modal */}
+      {products.length === 0 && !loading && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Package className="h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
+            <p className="text-gray-500 text-center mb-6">
+              Get started by adding your first product to the inventory.
+            </p>
+            <Button onClick={() => setIsAddModalOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Your First Product
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <AddProductModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onAdd={handleAddProduct}
         categories={categories}
       />
     </div>

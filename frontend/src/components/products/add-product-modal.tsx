@@ -4,34 +4,19 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import toast from 'react-hot-toast'
-
-interface Product {
-  id: string
-  name: string
-  description: string
-  price: number
-  cost: number
-  stock: number
-  lowStockAlert: number
-  categoryId: string
-  isAvailable: boolean
-}
-
-interface Category {
-  id: string
-  name: string
-  color: string
-}
+import { useProductStore } from '@/hooks/use-product-store'
+import type { Category, Product } from '@/lib/services'
 
 interface AddProductModalProps {
   isOpen: boolean
   onClose: () => void
-  onAdd: (product: Omit<Product, 'id'>) => void
+  onAdd?: (newProductData: Omit<Product, "id" | "category">) => void
   categories: Category[]
 }
 
 export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProductModalProps) {
+  const { addProduct, loading } = useProductStore()
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -62,7 +47,7 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!validateForm()) return
@@ -78,28 +63,31 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
       isAvailable: formData.isAvailable,
     }
 
-    onAdd(newProduct)
+    try {
+      await addProduct(newProduct)
+      onAdd?.(newProduct) // Call onAdd prop if provided
 
-    // Reset form
-    setFormData({
-      name: '',
-      description: '',
-      price: '',
-      cost: '',
-      stock: '',
-      lowStockAlert: '',
-      categoryId: '',
-      isAvailable: true,
-    })
-    setErrors({})
-
-    toast.success('Product added successfully!')
-    onClose()
+      // Reset form
+      setFormData({
+        name: '',
+        description: '',
+        price: '',
+        cost: '',
+        stock: '',
+        lowStockAlert: '',
+        categoryId: '',
+        isAvailable: true,
+      })
+      setErrors({})
+      onClose()
+    } catch (error) {
+      // Error is already handled in the store
+    }
   }
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    // Clear error when user starts typing
+    // Clear error for this field when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }))
     }
@@ -107,80 +95,43 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Add New Product</h2>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4" />
+      <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Add New Product</h2>
+          <Button variant="ghost" onClick={onClose} className="p-1">
+            <X className="h-5 w-5" />
           </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Product Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Product Name *
-              </label>
-              <Input
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                placeholder="Enter product name"
-                className={errors.name ? 'border-red-500' : ''}
-              />
-              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
-            </div>
-
-            {/* Category */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Category *
-              </label>
-              <select
-                value={formData.categoryId}
-                onChange={(e) => handleInputChange('categoryId', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.categoryId ? 'border-red-500' : 'border-gray-300'
-                }`}
-              >
-                <option value="">Select a category</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              {errors.categoryId && <p className="text-red-500 text-xs mt-1">{errors.categoryId}</p>}
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Product Name</label>
+            <Input
+              value={formData.name}
+              onChange={(e) => handleInputChange('name', e.target.value)}
+              placeholder="Enter product name"
+              className={errors.name ? 'border-red-500' : ''}
+            />
+            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
           </div>
 
-          {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description *
-            </label>
-            <textarea
+            <label className="block text-sm font-medium mb-1">Description</label>
+            <Input
               value={formData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
               placeholder="Enter product description"
-              rows={3}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.description ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={errors.description ? 'border-red-500' : ''}
             />
             {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Price */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Selling Price ($) *
-              </label>
+              <label className="block text-sm font-medium mb-1">Price ($)</label>
               <Input
                 type="number"
                 step="0.01"
-                min="0"
                 value={formData.price}
                 onChange={(e) => handleInputChange('price', e.target.value)}
                 placeholder="0.00"
@@ -189,15 +140,11 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
               {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
             </div>
 
-            {/* Cost */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cost ($) *
-              </label>
+              <label className="block text-sm font-medium mb-1">Cost ($)</label>
               <Input
                 type="number"
                 step="0.01"
-                min="0"
                 value={formData.cost}
                 onChange={(e) => handleInputChange('cost', e.target.value)}
                 placeholder="0.00"
@@ -207,15 +154,11 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Stock */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Initial Stock *
-              </label>
+              <label className="block text-sm font-medium mb-1">Stock Quantity</label>
               <Input
                 type="number"
-                min="0"
                 value={formData.stock}
                 onChange={(e) => handleInputChange('stock', e.target.value)}
                 placeholder="0"
@@ -224,14 +167,10 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
               {errors.stock && <p className="text-red-500 text-xs mt-1">{errors.stock}</p>}
             </div>
 
-            {/* Low Stock Alert */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Low Stock Alert *
-              </label>
+              <label className="block text-sm font-medium mb-1">Low Stock Alert</label>
               <Input
                 type="number"
-                min="0"
                 value={formData.lowStockAlert}
                 onChange={(e) => handleInputChange('lowStockAlert', e.target.value)}
                 placeholder="0"
@@ -241,27 +180,42 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
             </div>
           </div>
 
-          {/* Available Toggle */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Category</label>
+            <select
+              value={formData.categoryId}
+              onChange={(e) => handleInputChange('categoryId', e.target.value)}
+              className={`w-full p-2 border rounded-md ${errors.categoryId ? 'border-red-500' : 'border-gray-300'}`}
+            >
+              <option value="">Select a category</option>
+              {categories.filter(c => c.isActive).map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            {errors.categoryId && <p className="text-red-500 text-xs mt-1">{errors.categoryId}</p>}
+          </div>
+
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
               id="isAvailable"
               checked={formData.isAvailable}
               onChange={(e) => handleInputChange('isAvailable', e.target.checked)}
-              className="rounded border-gray-300"
+              className="rounded"
             />
-            <label htmlFor="isAvailable" className="text-sm font-medium text-gray-700">
-              Product is available for sale
+            <label htmlFor="isAvailable" className="text-sm font-medium">
+              Available for sale
             </label>
           </div>
 
-          {/* Buttons */}
           <div className="flex space-x-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>
-            <Button type="submit" className="flex-1">
-              Add Product
+            <Button type="submit" className="flex-1" disabled={loading}>
+              {loading ? 'Adding...' : 'Add Product'}
             </Button>
           </div>
         </form>

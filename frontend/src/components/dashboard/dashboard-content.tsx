@@ -13,39 +13,55 @@ import {
   Clock
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-
-// Mock data - in real app this would come from API
-const mockDashboardData = {
-  todaySales: 1247.50,
-  todayOrders: 45,
-  monthSales: 28450.00,
-  monthOrders: 1205,
-  totalProducts: 28,
-  lowStockProducts: 3,
-  recentSales: [
-    { id: '1', receiptNumber: 'RCP-20250916-0001', totalAmount: 15.75, createdAt: new Date() },
-    { id: '2', receiptNumber: 'RCP-20250916-0002', totalAmount: 8.50, createdAt: new Date() },
-    { id: '3', receiptNumber: 'RCP-20250916-0003', totalAmount: 22.25, createdAt: new Date() },
-  ]
-}
-
-const mockSalesData = [
-  { hour: 8, sales: 125.50, orders: 8 },
-  { hour: 9, sales: 245.75, orders: 15 },
-  { hour: 10, sales: 189.25, orders: 12 },
-  { hour: 11, sales: 298.50, orders: 18 },
-  { hour: 12, sales: 445.75, orders: 25 },
-  { hour: 13, sales: 367.25, orders: 22 },
-  { hour: 14, sales: 198.50, orders: 14 },
-  { hour: 15, sales: 156.75, orders: 11 },
-  { hour: 16, sales: 189.25, orders: 13 },
-  { hour: 17, sales: 234.50, orders: 16 },
-]
+import { useAnalyticsStore } from '@/hooks/use-analytics-store'
+import { useSalesStore } from '@/hooks/use-sales-store'
 
 export default function DashboardContent() {
-  const [data, setData] = useState(mockDashboardData)
+  const {
+    dashboardStats,
+    loading,
+    error,
+    fetchDashboardStats
+  } = useAnalyticsStore()
 
-  const averageOrderValue = data.todayOrders > 0 ? data.todaySales / data.todayOrders : 0
+  const { fetchSales } = useSalesStore()
+
+  useEffect(() => {
+    fetchDashboardStats()
+    fetchSales()
+  }, [fetchDashboardStats, fetchSales])
+
+  if (loading && !dashboardStats) {
+    return (
+      <div className="p-6 space-y-6 h-full overflow-y-auto">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-gray-500">Loading dashboard...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !dashboardStats) {
+    return (
+      <div className="p-6 space-y-6 h-full overflow-y-auto">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-red-500">{error}</div>
+        </div>
+      </div>
+    )
+  }
+
+  const stats = dashboardStats || {
+    todaySales: 0,
+    todayOrders: 0,
+    monthSales: 0,
+    monthOrders: 0,
+    totalProducts: 0,
+    lowStockProducts: 0,
+    recentSales: []
+  }
+
+  const averageOrderValue = stats.todayOrders > 0 ? stats.todaySales / stats.todayOrders : 0
 
   return (
     <div className="p-6 space-y-6 h-full overflow-y-auto">
@@ -69,9 +85,9 @@ export default function DashboardContent() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(data.todaySales)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.todaySales)}</div>
             <p className="text-xs text-muted-foreground">
-              +12.5% from yesterday
+              Revenue for today
             </p>
           </CardContent>
         </Card>
@@ -82,9 +98,9 @@ export default function DashboardContent() {
             <ShoppingBag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.todayOrders}</div>
+            <div className="text-2xl font-bold">{stats.todayOrders}</div>
             <p className="text-xs text-muted-foreground">
-              +8.2% from yesterday
+              Orders completed today
             </p>
           </CardContent>
         </Card>
@@ -97,7 +113,7 @@ export default function DashboardContent() {
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(averageOrderValue)}</div>
             <p className="text-xs text-muted-foreground">
-              +3.1% from yesterday
+              Per order today
             </p>
           </CardContent>
         </Card>
@@ -105,76 +121,13 @@ export default function DashboardContent() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-500" />
+            <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{data.lowStockProducts}</div>
-            <p className="text-xs text-muted-foreground">
-              Requires attention
+            <div className="text-2xl font-bold text-red-600">{stats.lowStockProducts}</div>
+            <p className="text-xs text-red-500">
+              Items need restocking
             </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts and Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Hourly Sales Chart */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Clock className="h-5 w-5 mr-2" />
-              Today's Hourly Sales
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {mockSalesData.map((item) => (
-                <div key={item.hour} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-sm font-medium w-12">
-                      {item.hour}:00
-                    </span>
-                    <div className="flex-1 bg-gray-200 rounded-full h-2 w-48">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full"
-                        style={{ width: `${(item.sales / 500) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium">{formatCurrency(item.sales)}</div>
-                    <div className="text-xs text-gray-500">{item.orders} orders</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Sales */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Users className="h-5 w-5 mr-2" />
-              Recent Sales
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {data.recentSales.map((sale) => (
-                <div key={sale.id} className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium">{sale.receiptNumber}</div>
-                    <div className="text-xs text-gray-500">
-                      {new Date(sale.createdAt).toLocaleTimeString()}
-                    </div>
-                  </div>
-                  <div className="text-sm font-bold">
-                    {formatCurrency(sale.totalAmount)}
-                  </div>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -183,50 +136,103 @@ export default function DashboardContent() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>This Month</CardTitle>
+            <CardTitle className="text-lg">Monthly Performance</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Sales:</span>
-                <span className="font-bold">{formatCurrency(data.monthSales)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Orders:</span>
-                <span className="font-bold">{data.monthOrders}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Average Order Value:</span>
-                <span className="font-bold">
-                  {formatCurrency(data.monthSales / data.monthOrders)}
-                </span>
-              </div>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">Total Sales</span>
+              <span className="font-semibold">{formatCurrency(stats.monthSales)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">Total Orders</span>
+              <span className="font-semibold">{stats.monthOrders}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">Average Order Value</span>
+              <span className="font-semibold">
+                {formatCurrency(stats.monthOrders > 0 ? stats.monthSales / stats.monthOrders : 0)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">Total Products</span>
+              <span className="font-semibold">{stats.totalProducts}</span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Inventory Status</CardTitle>
+            <CardTitle className="text-lg">Recent Sales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Products:</span>
-                <span className="font-bold">{data.totalProducts}</span>
+            {stats.recentSales.length > 0 ? (
+              <div className="space-y-3">
+                {stats.recentSales.slice(0, 5).map((sale) => (
+                  <div key={sale.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                    <div>
+                      <p className="font-medium text-sm">{sale.receiptNumber}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(sale.createdAt).toLocaleTimeString()}
+                      </p>
+                    </div>
+                    <span className="font-semibold">{formatCurrency(sale.totalAmount)}</span>
+                  </div>
+                ))}
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">In Stock:</span>
-                <span className="font-bold text-green-600">{data.totalProducts - data.lowStockProducts}</span>
+            ) : (
+              <div className="text-center py-8">
+                <ShoppingBag className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">No recent sales</p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Low Stock:</span>
-                <span className="font-bold text-orange-600">{data.lowStockProducts}</span>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="flex flex-col items-center p-4 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+              <ShoppingBag className="h-8 w-8 text-blue-600 mb-2" />
+              <span className="text-sm font-medium text-blue-900">New Sale</span>
+            </div>
+            <div className="flex flex-col items-center p-4 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors">
+              <Package className="h-8 w-8 text-green-600 mb-2" />
+              <span className="text-sm font-medium text-green-900">Add Product</span>
+            </div>
+            <div className="flex flex-col items-center p-4 bg-purple-50 rounded-lg cursor-pointer hover:bg-purple-100 transition-colors">
+              <Users className="h-8 w-8 text-purple-600 mb-2" />
+              <span className="text-sm font-medium text-purple-900">Add Customer</span>
+            </div>
+            <div className="flex flex-col items-center p-4 bg-orange-50 rounded-lg cursor-pointer hover:bg-orange-100 transition-colors">
+              <TrendingUp className="h-8 w-8 text-orange-600 mb-2" />
+              <span className="text-sm font-medium text-orange-900">View Reports</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Low Stock Alert */}
+      {stats.lowStockProducts > 0 && (
+        <Card className="border-red-200 bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-red-800 flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5" />
+              <span>Stock Alert</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-red-700 text-sm">
+              You have {stats.lowStockProducts} product{stats.lowStockProducts !== 1 ? 's' : ''} running low on stock.
+              Consider restocking to avoid running out.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

@@ -7,7 +7,7 @@ import { formatCurrency, generateReceiptId } from '@/lib/utils'
 import { CartItem } from '@/types'
 import { useSalesStore } from '@/hooks/use-sales-store'
 import toast from 'react-hot-toast'
-import axios from 'axios'
+import { api } from '@/lib/api'
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -78,7 +78,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
     setCustomerError('')
     setCustomer(null)
     try {
-      const res = await axios.get(`/api/customers/search?q=${encodeURIComponent(customerPhone)}`)
+      const res = await api.get(`/customers/search?q=${encodeURIComponent(customerPhone)}`)
       if (res.data.length > 0) {
         setCustomer(res.data[0])
         setCustomerName(res.data[0].name)
@@ -87,6 +87,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
         setCustomerError('No customer found. Please enter name to add.')
       }
     } catch (e) {
+      console.log("Error searching customer", e)
       setCustomerError('Error searching customer')
     }
     setCustomerSearchLoading(false)
@@ -95,7 +96,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
   const handleAddCustomer = async () => {
     setCustomerError('')
     try {
-      const res = await axios.post('/api/customers', { name: customerName, phone: customerPhone })
+      const res = await api.post('/customers', { name: customerName, phone: customerPhone })
       setCustomer(res.data)
     } catch (e) {
       setCustomerError('Error adding customer')

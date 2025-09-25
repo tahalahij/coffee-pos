@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import { api } from '@/lib/api';
 
 interface Customer {
   id: string;
@@ -47,14 +47,14 @@ export default function CustomersContent() {
   const fetchCustomers = async (q?: string) => {
     setLoading(true);
     const res = q
-      ? await axios.get(`/api/customers/search?q=${encodeURIComponent(q)}`)
-      : await axios.get('/api/customers');
+      ? await api.get(`/customers/search?q=${encodeURIComponent(q)}`)
+      : await api.get('/customers');
     setCustomers(res.data);
     setLoading(false);
   };
 
   const fetchDiscounts = async () => {
-    const res = await axios.get('/api/discounts');
+    const res = await api.get('/discounts');
     setDiscounts(res.data);
     if (res.data.length > 0) setSelectedDiscountId(res.data[0].id);
   };
@@ -66,7 +66,7 @@ export default function CustomersContent() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    await axios.post('/api/customers', { name, phone });
+    await api.post('/customers', { name, phone });
     setName('');
     setPhone('');
     fetchCustomers();
@@ -76,7 +76,7 @@ export default function CustomersContent() {
     setCodesLoading(true);
     setCodeError('');
     try {
-      const res = await axios.get(`/api/customers/${customerId}/discount-codes`);
+      const res = await api.get(`/customers/${customerId}/discount-codes`);
       setCodes(res.data);
       setShowCodes(true);
     } catch (e) {
@@ -88,7 +88,7 @@ export default function CustomersContent() {
   const handleGenerateCode = async () => {
     setCodeError('');
     try {
-      await axios.post(`/api/customers/${selectedCustomer?.id}/discount-codes`, {
+      await api.post(`/customers/${selectedCustomer?.id}/discount-codes`, {
         expiresAt: newCodeExpiry,
         discountId: selectedDiscountId,
         customerId: selectedCustomer?.id,

@@ -1,263 +1,275 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
 
-  async getDashboardOverview() {
+  async getDashboardStats() {
     const today = new Date();
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
-
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    const [todaySales, monthSales, totalProducts, lowStockProducts, recentSales] = await Promise.all([
-      // Today's sales
-      this.prisma.sale.aggregate({
-        where: {
-          createdAt: { gte: startOfDay, lte: endOfDay },
-          status: 'COMPLETED',
-        },
-        _sum: { totalAmount: true },
-        _count: true,
-      }),
+    // Today's sales
+    const todaysSales = await this.prisma.sale.aggregate({
+      where: {
+        createdAt: { gte: startOfDay },
+        status: 'COMPLETED',
+      },
+      _sum: { totalAmount: true },
+      _count: true,
+    });
 
-      // This month's sales
-      this.prisma.sale.aggregate({
-        where: {
-          createdAt: { gte: startOfMonth, lte: endOfMonth },
-          status: 'COMPLETED',
-        },
-        _sum: { totalAmount: true },
-        _count: true,
-      }),
+    // Month's sales
+    const monthSales = await this.prisma.sale.aggregate({
+      where: {
+        createdAt: { gte: startOfMonth },
+        status: 'COMPLETED',
+      },
+      _sum: { totalAmount: true },
+      _count: true,
+    });
 
-      // Total products
-      this.prisma.product.count({
-        where: { isAvailable: true },
-      }),
+    // Total products
+    const totalProducts = await this.prisma.product.count();
 
-      // Low stock products - Fixed query
-      this.prisma.product.count({
-        where: {
-          AND: [
-            { lowStockAlert: { not: null } },
-            {
-              OR: [
-                { stock: { lte: 10 } }, // Default low stock threshold
-              ]
-            }
-          ],
-        },
-      }),
+    // Low stock products - Use a simpler approach that works reliably
+    const products = await this.prisma.product.findMany({
+      select: {
+        id: true,
+        stock: true,
+        lowStockAlert: true,
+      },
+    });
 
-      // Recent sales
-      this.prisma.sale.findMany({
-        take: 10,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          items: {
-            include: {
-              product: {
-                select: { name: true },
-              },
-            },
-          },
-        },
-      }),
-    ]);
+    const lowStockProducts = products.filter(product =>
+      product.lowStockAlert !== null &&
+      product.stock <= product.lowStockAlert
+    ).length;
+
+    // Recent sales
+    const recentSales = await this.prisma.sale.findMany({
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        receiptNumber: true,
+        totalAmount: true,
+        createdAt: true,
+      },
+    });
 
     return {
-      todaySales: Number(todaySales._sum.totalAmount || 0),
-      todayOrders: todaySales._count,
-      monthSales: Number(monthSales._sum.totalAmount || 0),
-      monthOrders: monthSales._count,
+      todaySales: Number(todaysSales._sum.totalAmount) || 0,
+      todayOrders: todaysSales._count || 0,
+      monthSales: Number(monthSales._sum.totalAmount) || 0,
+      monthOrders: monthSales._count || 0,
       totalProducts,
       lowStockProducts,
       recentSales,
     };
   }
 
-  async getSalesAnalytics(days: number = 30) {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - days);
+  async getSalesAnalytics(period: 'today' | 'week' | 'month') {
+    const now = new Date();
+    let startDate: Date;
+
+    switch (period) {
+      case 'today':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case 'week':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      default:
+        throw new NotFoundException('Invalid period specified');
+    }
 
     const sales = await this.prisma.sale.findMany({
       where: {
-        createdAt: { gte: startDate, lte: endDate },
+        createdAt: { gte: startDate },
         status: 'COMPLETED',
       },
-      include: {
-        items: {
-          include: {
-            product: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        },
+      select: {
+        totalAmount: true,
+        createdAt: true,
       },
     });
 
-    const dailySales = this.groupSalesByDate(sales);
-    const topProducts = this.getTopSellingProducts(sales);
-    const categoryBreakdown = this.getCategoryBreakdown(sales);
-    const paymentMethodBreakdown = this.getPaymentMethodBreakdown(sales);
+    const totalSales = sales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
+    const totalOrders = sales.length;
+
+    // Create breakdown based on period
+    let breakdown = [];
+    if (period === 'today') {
+      // Hourly breakdown
+      for (let hour = 0; hour < 24; hour++) {
+        const hourStart = new Date(startDate.getTime() + hour * 60 * 60 * 1000);
+        const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
+
+        const hourlySales = sales.filter(
+          sale => sale.createdAt >= hourStart && sale.createdAt < hourEnd
+        );
+
+        breakdown.push({
+          period: hour,
+          sales: hourlySales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0),
+          orders: hourlySales.length,
+        });
+      }
+    } else {
+      // Daily breakdown for week/month
+      const days = period === 'week' ? 7 : 30;
+      for (let day = 0; day < days; day++) {
+        const dayStart = new Date(startDate.getTime() + day * 24 * 60 * 60 * 1000);
+        const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+        const dailySales = sales.filter(
+          sale => sale.createdAt >= dayStart && sale.createdAt < dayEnd
+        );
+
+        breakdown.push({
+          date: dayStart.toISOString().split('T')[0],
+          sales: dailySales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0),
+          orders: dailySales.length,
+        });
+      }
+    }
 
     return {
-      dailySales,
-      topProducts,
-      categoryBreakdown,
-      paymentMethodBreakdown,
-      totalRevenue: sales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0),
-      totalOrders: sales.length,
-      averageOrderValue: sales.length > 0 ? sales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0) / sales.length : 0,
+      totalSales,
+      totalOrders,
+      [period === 'today' ? 'hourlyBreakdown' : 'dailyBreakdown']: breakdown,
     };
   }
 
-  async getProductPerformance() {
-    const products = await this.prisma.product.findMany({
-      include: {
-        category: true,
-        saleItems: {
-          where: {
-            sale: {
-              status: 'COMPLETED'
-            }
-          }
-        },
-      },
+  async getTopProducts(limit: number = 10) {
+    const topProducts = await this.prisma.saleItem.groupBy({
+      by: ['productId'],
+      _sum: { quantity: true, totalAmount: true },
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: limit,
     });
 
-    return products.map(product => {
-      const totalSold = product.saleItems.reduce((sum, item) => sum + item.quantity, 0);
-      const totalRevenue = product.saleItems.reduce((sum, item) => sum + Number(item.totalAmount), 0);
+    const productsWithDetails = await Promise.all(
+      topProducts.map(async (item) => {
+        const product = await this.prisma.product.findUnique({
+          where: { id: item.productId },
+          select: { name: true, price: true },
+        });
 
-      return {
-        id: product.id,
-        name: product.name,
-        category: product.category.name,
-        price: Number(product.price),
-        stock: product.stock,
-        totalSold,
-        totalRevenue,
-        profitMargin: product.cost ? ((Number(product.price) - Number(product.cost)) / Number(product.price)) * 100 : null,
-      };
-    }).sort((a, b) => b.totalRevenue - a.totalRevenue);
-  }
-
-  async getInventoryReport() {
-    const products = await this.prisma.product.findMany({
-      include: {
-        category: true,
-      },
-    });
-
-    const totalInventoryValue = products.reduce((sum, product) => {
-      const cost = Number(product.cost || 0);
-      return sum + (cost * product.stock);
-    }, 0);
-
-    const lowStockProducts = products.filter(product =>
-      product.lowStockAlert && product.stock <= product.lowStockAlert
+        return {
+          product,
+          totalQuantity: item._sum.quantity,
+          totalRevenue: Number(item._sum.totalAmount),
+        };
+      })
     );
 
-    const outOfStockProducts = products.filter(product => product.stock === 0);
+    return productsWithDetails;
+  }
+
+  async getTopCustomers(limit: number = 10) {
+    const topCustomers = await this.prisma.sale.groupBy({
+      by: ['customerId'],
+      where: { customerId: { not: null } },
+      _sum: { totalAmount: true },
+      _count: true,
+      orderBy: { _sum: { totalAmount: 'desc' } },
+      take: limit,
+    });
+
+    const customersWithDetails = await Promise.all(
+      topCustomers.map(async (item) => {
+        const customer = await this.prisma.customer.findUnique({
+          where: { id: item.customerId! },
+          select: { name: true, phone: true },
+        });
+
+        return {
+          customer,
+          totalSpent: Number(item._sum.totalAmount),
+          totalOrders: item._count,
+        };
+      })
+    );
+
+    return customersWithDetails;
+  }
+
+  async getRevenueTrends() {
+    const now = new Date();
+    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Daily trends (last 30 days)
+    const dailyTrends = [];
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+      const dailySales = await this.prisma.sale.aggregate({
+        where: {
+          createdAt: { gte: startOfDay, lt: endOfDay },
+          status: 'COMPLETED',
+        },
+        _sum: { totalAmount: true },
+      });
+
+      dailyTrends.push({
+        date: startOfDay.toISOString().split('T')[0],
+        revenue: Number(dailySales._sum.totalAmount) || 0,
+      });
+    }
+
+    // Weekly trends (last 12 weeks)
+    const weeklyTrends = [];
+    for (let i = 11; i >= 0; i--) {
+      const weekStart = new Date(now.getTime() - (i * 7 + 7) * 24 * 60 * 60 * 1000);
+      const weekEnd = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+
+      const weeklySales = await this.prisma.sale.aggregate({
+        where: {
+          createdAt: { gte: weekStart, lt: weekEnd },
+          status: 'COMPLETED',
+        },
+        _sum: { totalAmount: true },
+      });
+
+      weeklyTrends.push({
+        week: `Week of ${weekStart.toISOString().split('T')[0]}`,
+        revenue: Number(weeklySales._sum.totalAmount) || 0,
+      });
+    }
+
+    // Monthly trends (last 12 months)
+    const monthlyTrends = [];
+    for (let i = 11; i >= 0; i--) {
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+
+      const monthlySales = await this.prisma.sale.aggregate({
+        where: {
+          createdAt: { gte: monthStart, lt: monthEnd },
+          status: 'COMPLETED',
+        },
+        _sum: { totalAmount: true },
+      });
+
+      monthlyTrends.push({
+        month: monthStart.toISOString().substring(0, 7),
+        revenue: Number(monthlySales._sum.totalAmount) || 0,
+      });
+    }
 
     return {
-      totalProducts: products.length,
-      totalInventoryValue,
-      lowStockProducts: lowStockProducts.length,
-      outOfStockProducts: outOfStockProducts.length,
-      products: products.map(product => ({
-        id: product.id,
-        name: product.name,
-        category: product.category.name,
-        stock: product.stock,
-        cost: Number(product.cost || 0),
-        inventoryValue: (Number(product.cost || 0)) * product.stock,
-        lowStockAlert: product.lowStockAlert,
-        isLowStock: product.lowStockAlert ? product.stock <= product.lowStockAlert : false,
-      })),
+      daily: dailyTrends,
+      weekly: weeklyTrends,
+      monthly: monthlyTrends,
     };
-  }
-
-  private groupSalesByDate(sales: any[]) {
-    const dailySales = new Map();
-
-    sales.forEach(sale => {
-      const date = new Date(sale.createdAt).toISOString().split('T')[0];
-      const existing = dailySales.get(date) || { date, sales: 0, orders: 0 };
-
-      existing.sales += Number(sale.totalAmount);
-      existing.orders += 1;
-      dailySales.set(date, existing);
-    });
-
-    return Array.from(dailySales.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }
-
-  private getTopSellingProducts(sales: any[]) {
-    const productStats = new Map();
-
-    sales.forEach(sale => {
-      sale.items.forEach(item => {
-        const productId = item.product.id;
-        const existing = productStats.get(productId) || {
-          product: item.product,
-          quantity: 0,
-          revenue: 0,
-        };
-
-        existing.quantity += item.quantity;
-        existing.revenue += Number(item.totalAmount);
-        productStats.set(productId, existing);
-      });
-    });
-
-    return Array.from(productStats.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10);
-  }
-
-  private getCategoryBreakdown(sales: any[]) {
-    const categoryStats = new Map();
-
-    sales.forEach(sale => {
-      sale.items.forEach(item => {
-        const categoryName = item.product.category.name;
-        const existing = categoryStats.get(categoryName) || {
-          category: categoryName,
-          revenue: 0,
-          quantity: 0,
-        };
-
-        existing.revenue += Number(item.totalAmount);
-        existing.quantity += item.quantity;
-        categoryStats.set(categoryName, existing);
-      });
-    });
-
-    return Array.from(categoryStats.values())
-      .sort((a, b) => b.revenue - a.revenue);
-  }
-
-  private getPaymentMethodBreakdown(sales: any[]) {
-    const paymentStats = {
-      CASH: { count: 0, amount: 0 },
-      CARD: { count: 0, amount: 0 },
-      DIGITAL: { count: 0, amount: 0 },
-    };
-
-    sales.forEach(sale => {
-      paymentStats[sale.paymentMethod].count += 1;
-      paymentStats[sale.paymentMethod].amount += Number(sale.totalAmount);
-    });
-
-    return paymentStats;
   }
 }

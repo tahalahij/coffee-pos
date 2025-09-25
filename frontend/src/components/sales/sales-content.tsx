@@ -5,12 +5,12 @@ import { Search, RefreshCw, Eye, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { useSalesStore, Sale } from '@/hooks/use-sales-store'
+import { useSalesStore, StoreSale } from '@/hooks/use-sales-store'
 import toast from 'react-hot-toast'
 
 export default function SalesContent() {
   const { sales, loading, error, fetchSales, updateSaleStatus } = useSalesStore()
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
+  const [selectedSale, setSelectedSale] = useState<StoreSale | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
 

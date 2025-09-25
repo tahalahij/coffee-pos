@@ -4,18 +4,11 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-
-interface Category {
-  name: string
-  description?: string
-  color: string
-  isActive: boolean
-}
+import { useCategoryStore } from '@/hooks/use-category-store'
 
 interface AddCategoryModalProps {
   isOpen: boolean
   onClose: () => void
-  onAdd: (category: Category) => void
 }
 
 const colorOptions = [
@@ -31,35 +24,60 @@ const colorOptions = [
   '#556B2F', // Dark Olive Green
 ]
 
-export function AddCategoryModal({ isOpen, onClose, onAdd }: AddCategoryModalProps) {
+export function AddCategoryModal({ isOpen, onClose }: AddCategoryModalProps) {
+  const { addCategory, loading } = useCategoryStore()
+
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [selectedColor, setSelectedColor] = useState(colorOptions[0])
   const [isActive, setIsActive] = useState(true)
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   if (!isOpen) return null
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {}
+
+    if (!name.trim()) newErrors.name = 'Category name is required'
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!name.trim()) {
-      alert('Please enter a category name')
-      return
+    if (!validateForm()) return
+
+    try {
+      await addCategory({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        color: selectedColor,
+        isActive
+      })
+
+      // Reset form
+      setName('')
+      setDescription('')
+      setSelectedColor(colorOptions[0])
+      setIsActive(true)
+      setErrors({})
+      onClose()
+    } catch (error) {
+      // Error is already handled in the store
     }
+  }
 
-    onAdd({
-      name: name.trim(),
-      description: description.trim() || undefined,
-      color: selectedColor,
-      isActive
-    })
+  const handleInputChange = (field: string, value: string | boolean) => {
+    if (field === 'name') setName(value as string)
+    if (field === 'description') setDescription(value as string)
+    if (field === 'isActive') setIsActive(value as boolean)
 
-    // Reset form
-    setName('')
-    setDescription('')
-    setSelectedColor(colorOptions[0])
-    setIsActive(true)
-    onClose()
+    // Clear error for this field when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }))
+    }
   }
 
   return (
@@ -79,10 +97,11 @@ export function AddCategoryModal({ isOpen, onClose, onAdd }: AddCategoryModalPro
             <Input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => handleInputChange('name', e.target.value)}
               placeholder="Enter category name"
-              required
+              className={errors.name ? 'border-red-500' : ''}
             />
+            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
           </div>
 
           {/* Description */}
@@ -91,7 +110,7 @@ export function AddCategoryModal({ isOpen, onClose, onAdd }: AddCategoryModalPro
             <Input
               type="text"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => handleInputChange('description', e.target.value)}
               placeholder="Enter category description (optional)"
             />
           </div>
@@ -104,37 +123,52 @@ export function AddCategoryModal({ isOpen, onClose, onAdd }: AddCategoryModalPro
                 <button
                   key={color}
                   type="button"
-                  className={`w-10 h-10 rounded-full border-2 ${
-                    selectedColor === color ? 'border-gray-400' : 'border-gray-200'
+                  className={`w-10 h-10 rounded-full border-2 transition-all ${
+                    selectedColor === color
+                      ? 'border-gray-800 scale-110'
+                      : 'border-gray-300 hover:border-gray-500'
                   }`}
                   style={{ backgroundColor: color }}
                   onClick={() => setSelectedColor(color)}
+                  title={color}
                 />
               ))}
             </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Selected color: <span style={{ color: selectedColor }}>{selectedColor}</span>
+            </p>
           </div>
 
-          {/* Status */}
+          {/* Active Status */}
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
               id="isActive"
               checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
+              onChange={(e) => handleInputChange('isActive', e.target.checked)}
               className="rounded"
             />
             <label htmlFor="isActive" className="text-sm font-medium">
-              Active (available for use)
+              Active (available for products)
             </label>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-4">
-            <Button type="submit" className="flex-1">
-              Add Category
-            </Button>
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+          {/* Buttons */}
+          <div className="flex space-x-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="flex-1"
+            >
               Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={loading}
+            >
+              {loading ? 'Adding...' : 'Add Category'}
             </Button>
           </div>
         </form>

@@ -7,6 +7,11 @@ export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
   async create(createProductDto: CreateProductDto) {
+    // Validate required fields
+    if (!createProductDto.categoryId) {
+      throw new BadRequestException('Category ID is required');
+    }
+
     // Check if category exists
     const category = await this.prisma.category.findUnique({
       where: { id: createProductDto.categoryId },
@@ -120,17 +125,23 @@ export class ProductsService {
   async updateStock(id: string, quantity: number, operation: 'add' | 'subtract' = 'add') {
     const product = await this.findOne(id);
 
+    // Ensure product.stock is a valid number
+    const currentStock = typeof product.stock === 'number' ? product.stock : 0;
+
     const newStock = operation === 'add'
-      ? product.stock + quantity
-      : product.stock - quantity;
+      ? currentStock + quantity
+      : currentStock - quantity;
 
     if (newStock < 0) {
       throw new BadRequestException('Insufficient stock');
     }
 
+    // Ensure newStock is a valid integer
+    const stockToUpdate = Math.floor(newStock);
+
     return this.prisma.product.update({
       where: { id },
-      data: { stock: newStock },
+      data: { stock: stockToUpdate },
       include: {
         category: true,
       },
