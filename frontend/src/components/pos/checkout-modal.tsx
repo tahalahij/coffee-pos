@@ -26,7 +26,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
   const [customer, setCustomer] = useState<any>(null)
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false)
   const [customerError, setCustomerError] = useState('')
-  const { addSale } = useSalesStore()
 
   if (!isOpen) return null
 
@@ -34,28 +33,34 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
     setIsProcessing(true)
 
     try {
-      // Create simplified sale data - let backend handle the logic
+      // Create clean sale data structure that matches the DTO
       const saleData = {
         paymentMethod,
-        customerId: customer ? customer.id : undefined,
+        customerId: customer?.id,
         cashReceived: paymentMethod === 'CASH' ? cashReceived : undefined,
-        items: items.map(item => ({
-          productId: item.id.split('-')[0], // Extract product ID from cart item ID
-          quantity: item.quantity,
-          unitPrice: item.price,
-          product: {
-            name: item.product.name,
-            price: item.product.price
+        items: items.map(item => {
+          // Extract productId from cart item ID (format: "productId-uniqueId")
+          const productIdStr = item.id.toString().split('-')[0]
+          const productId = parseInt(productIdStr)
+          
+          return {
+            productId: productId,
+            quantity: item.quantity,
+            unitPrice: item.price
           }
-        }))
+        })
       }
+
+      console.log('Sending sale data:', JSON.stringify(saleData, null, 2))
 
       // Send to backend API - let it calculate totals, generate receipt, etc.
       const response = await api.post('/sales', saleData)
       const createdSale = response.data
 
-      // Add to local sales store for immediate UI update
-      addSale(createdSale)
+      // Update the sales store by fetching the latest sales (which includes our new sale)
+      // Don't call addSale() with the response data since it would try to create another sale
+      const { fetchSales } = useSalesStore.getState()
+      fetchSales()
 
       toast.success(`Payment successful! Receipt: ${createdSale.receiptNumber}`)
       onComplete()

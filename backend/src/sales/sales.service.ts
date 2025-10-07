@@ -26,122 +26,25 @@ export class SalesService {
 
     // Validate products exist and have sufficient stock
     for (const item of createSaleDto.items) {
-      let product = null;
-      let productId = item.productId;
-
-      // If productId is missing but we have an id field, try to extract from it
-      if (!productId && item.id) {
-        const idParts = item.id.split('-');
-        if (idParts.length > 1) {
-          productId = parseInt(idParts[0]);
-        }
-      }
-
       console.log(`Processing item: ${JSON.stringify(item)}`);
-      console.log(`Extracted productId: ${productId}`);
+      console.log(`Looking for productId: ${item.productId}`);
 
-      // Try to find product by ID first
-      if (productId && !isNaN(productId)) {
-        try {
-          product = await this.productsService.findOne(productId);
-          console.log(`Found product by ID: ${product.name} (ID: ${product.id})`);
-        } catch (error) {
-          console.log(`Product not found by ID ${productId}`);
-        }
-      }
-
-      // If not found by ID, try multiple approaches to find the product
-      if (!product && item.product && item.product.name) {
-        const searchName = item.product.name;
-        console.log(`Searching for product with name: "${searchName}"`);
-
-        try {
-          // First try: exact case-insensitive match
-          let productByName = await this.productModel.findOne({
-            where: {
-              name: {
-                [Op.iLike]: searchName
-              },
-              isAvailable: true
-            },
-            include: [{ model: Category, as: 'category' }]
-          });
-
-          // Second try: partial match (contains)
-          if (!productByName) {
-            console.log(`Exact match failed, trying partial match for: "${searchName}"`);
-            productByName = await this.productModel.findOne({
-              where: {
-                name: {
-                  [Op.iLike]: `%${searchName}%`
-                },
-                isAvailable: true
-              },
-              include: [{ model: Category, as: 'category' }]
-            });
-          }
-
-          // Third try: reverse partial match (search name contains product name)
-          if (!productByName) {
-            console.log(`Partial match failed, trying reverse match for: "${searchName}"`);
-            const allProducts = await this.productModel.findAll({
-              where: { isAvailable: true },
-              attributes: ['id', 'name', 'price', 'stock', 'isAvailable'],
-            });
-
-            // Check if any product name is contained within the search name
-            const matchedProduct = allProducts.find(p =>
-              searchName.toLowerCase().includes(p.name.toLowerCase()) ||
-              p.name.toLowerCase().includes(searchName.toLowerCase())
-            );
-
-            if (matchedProduct) {
-              productByName = await this.productModel.findByPk(matchedProduct.id, {
-                include: [{ model: Category, as: 'category' }]
-              });
-            }
-          }
-
-          if (productByName) {
-            product = productByName;
-            // Update the item with the correct productId
-            item.productId = product.id;
-            console.log(`Found product by name matching: ${product.name} (ID: ${product.id})`);
-          }
-        } catch (error) {
-          console.log(`Error finding product by name: ${error.message}`);
-        }
-      }
-
-      // If still no product found, provide helpful error with available options
-      if (!product) {
+      // Find product by ID
+      let product = null;
+      try {
+        product = await this.productsService.findOne(item.productId);
+        console.log(`Found product by ID: ${product.name} (ID: ${product.id})`);
+      } catch (error) {
+        console.log(`Product not found by ID ${item.productId}: ${error.message}`);
+        
         const availableProducts = await this.productModel.findAll({
           attributes: ['id', 'name', 'price'],
           where: { isAvailable: true },
           order: [['name', 'ASC']]
         });
 
-        console.log('Available products:', availableProducts);
-
-        const productInfo = item.product ? ` (looking for "${item.product.name}")` : '';
-        const searchedId = productId ? ` with ID "${productId}"` : '';
-
-        // Suggest the closest matching product if any
-        let suggestion = '';
-        if (item.product && item.product.name && availableProducts.length > 0) {
-          const searchName = item.product.name.toLowerCase();
-          const closestMatch = availableProducts.find(p =>
-            p.name.toLowerCase().includes(searchName) ||
-            searchName.includes(p.name.toLowerCase())
-          );
-
-          if (closestMatch) {
-            suggestion = ` Did you mean "${closestMatch.name}"?`;
-          }
-        }
-
         throw new BadRequestException(
-          `Product not found${searchedId}${productInfo}.${suggestion} Available products: ${availableProducts.map(p => `${p.name} (ID: ${p.id})`).join(', ')}`
+          `Product with ID ${item.productId} not found. Available products: ${availableProducts.map(p => `${p.name} (ID: ${p.id})`).join(', ')}`
         );
       }
 
@@ -154,9 +57,7 @@ export class SalesService {
         throw new BadRequestException(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
       }
 
-      // Ensure the item has the correct productId
-      item.productId = product.id;
-      console.log(`Final productId for ${product.name}: ${product.id}`);
+      console.log(`Validated product: ${product.name} (ID: ${product.id})`);
     }
 
     // Generate receipt number
