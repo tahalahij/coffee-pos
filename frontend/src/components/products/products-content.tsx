@@ -83,54 +83,56 @@ export default function ProductsContent() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium truncate pr-2">Total Products</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalProducts}</div>
-            <p className="text-xs text-muted-foreground">
+          <CardContent className="pt-0">
+            <div className="text-xl md:text-2xl font-bold">{totalProducts}</div>
+            <p className="text-xs text-muted-foreground truncate">
               {availableProducts} available
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-500" />
+            <CardTitle className="text-sm font-medium truncate pr-2">Low Stock Alerts</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{lowStockProducts.length}</div>
-            <p className="text-xs text-red-500">
+          <CardContent className="pt-0">
+            <div className="text-xl md:text-2xl font-bold text-red-600">{lowStockProducts.length}</div>
+            <p className="text-xs text-red-500 truncate">
               Items need restocking
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium truncate pr-2">Total Inventory Value</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalValue)}</div>
-            <p className="text-xs text-muted-foreground">
+          <CardContent className="pt-0">
+            <div className="text-xl md:text-2xl font-bold truncate" title={formatCurrency(totalValue)}>
+              {formatCurrency(totalValue)}
+            </div>
+            <p className="text-xs text-muted-foreground truncate">
               At cost price
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Categories</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium truncate pr-2">Categories</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{categories.filter(c => c.isActive).length}</div>
-            <p className="text-xs text-muted-foreground">
+          <CardContent className="pt-0">
+            <div className="text-xl md:text-2xl font-bold">{categories.filter(c => c.isActive).length}</div>
+            <p className="text-xs text-muted-foreground truncate">
               Active categories
             </p>
           </CardContent>
@@ -163,67 +165,76 @@ export default function ProductsContent() {
       )}
 
       {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
         {products.map((product: Product) => (
-          <Card key={product.id} className={`${!product.isAvailable ? 'opacity-60' : ''}`}>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-lg">{product.name}</CardTitle>
-                  <p className="text-sm text-gray-500 mt-1">{product.description}</p>
+          <Card key={product.id} className={`${!product.isAvailable ? 'opacity-60' : ''} flex flex-col h-full`}>
+            <CardHeader className="pb-3 flex-shrink-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-base md:text-lg truncate" title={product.name}>
+                    {product.name}
+                  </CardTitle>
+                  <p className="text-sm text-gray-500 mt-1 line-clamp-2 break-words" title={product.description}>
+                    {product.description}
+                  </p>
                 </div>
-                <div className="flex items-center space-x-1 ml-2">
+                <div className="flex items-center space-x-1 flex-shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleToggleAvailability(product.id)}
-                    className={product.isAvailable ? 'text-green-600' : 'text-gray-400'}
+                    className={`${product.isAvailable ? 'text-green-600' : 'text-gray-400'} p-1 h-8 w-8`}
+                    title={product.isAvailable ? 'Available' : 'Unavailable'}
                   >
                     <Package className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" className="p-1 h-8 w-8" title="Edit Product">
                     <Edit className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDeleteProduct(product.id)}
-                    className="text-red-600 hover:text-red-700"
+                    className="text-red-600 hover:text-red-700 p-1 h-8 w-8"
+                    title="Delete Product"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 flex-1 pt-0">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Price</span>
-                <span className="font-semibold">{formatCurrency(product.price)}</span>
+                <span className="text-sm text-gray-500 truncate">Price</span>
+                <span className="font-semibold text-sm md:text-base whitespace-nowrap">
+                  {formatCurrency(product.price)}
+                </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Cost</span>
-                <span className="text-sm">{formatCurrency(product.cost)}</span>
+                <span className="text-sm text-gray-500 truncate">Cost</span>
+                <span className="text-sm whitespace-nowrap">{formatCurrency(product.cost)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Stock</span>
-                <span className={`text-sm font-medium ${
+                <span className="text-sm text-gray-500 truncate">Stock</span>
+                <span className={`text-sm font-medium whitespace-nowrap ${
                   product.stock <= product.lowStockAlert ? 'text-red-600' : 'text-green-600'
                 }`}>
                   {product.stock} units
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Category</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-gray-500 truncate">Category</span>
                 <span
-                  className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                  className="px-2 py-1 rounded-full text-xs font-medium text-white truncate max-w-20 md:max-w-none"
                   style={{ backgroundColor: product.category.color }}
+                  title={product.category.name}
                 >
                   {product.category.name}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Status</span>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-gray-500 truncate">Status</span>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
                   product.isAvailable 
                     ? 'bg-green-100 text-green-800' 
                     : 'bg-gray-100 text-gray-800'

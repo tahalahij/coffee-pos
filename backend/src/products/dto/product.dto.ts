@@ -1,6 +1,6 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsUUID, Min } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, IsInt, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class CreateProductDto {
   @ApiProperty()
@@ -36,8 +36,9 @@ export class CreateProductDto {
   imageUrl?: string;
 
   @ApiProperty()
-  @IsUUID()
-  categoryId: string;
+  @IsInt()
+  @Type(() => Number)
+  categoryId: number;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()
@@ -46,14 +47,23 @@ export class CreateProductDto {
 
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Type(() => Number)
   stock?: number;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  minStockLevel?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Type(() => Number)
   lowStockAlert?: number;
 }
 
@@ -72,14 +82,14 @@ export class UpdateProductDto {
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  @Transform(({ value }) => parseFloat(value))
+  @Transform(({ value }) => value ? parseFloat(value) : undefined)
   price?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  @Transform(({ value }) => parseFloat(value))
+  @Transform(({ value }) => value ? parseFloat(value) : undefined)
   cost?: number;
 
   @ApiPropertyOptional()
@@ -94,8 +104,9 @@ export class UpdateProductDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
-  categoryId?: string;
+  @IsInt()
+  @Type(() => Number)
+  categoryId?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -104,13 +115,22 @@ export class UpdateProductDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Type(() => Number)
   stock?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Type(() => Number)
+  minStockLevel?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
   lowStockAlert?: number;
 }

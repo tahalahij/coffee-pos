@@ -8,6 +8,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { SalesService } from './sales.service';
@@ -45,7 +46,7 @@ export class SalesController {
   @ApiOperation({ summary: 'Get sale by ID' })
   @ApiResponse({ status: 200, description: 'Sale retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Sale not found' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.salesService.findOne(id);
   }
 
@@ -53,20 +54,8 @@ export class SalesController {
   @ApiOperation({ summary: 'Update sale' })
   @ApiResponse({ status: 200, description: 'Sale updated successfully' })
   @ApiResponse({ status: 404, description: 'Sale not found' })
-  update(@Param('id') id: string, @Body() updateSaleDto: UpdateSaleDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateSaleDto: UpdateSaleDto) {
     return this.salesService.update(id, updateSaleDto);
   }
 
-  @Post(':id/refund')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Refund a sale' })
-  @ApiResponse({ status: 200, description: 'Sale refunded successfully' })
-  @ApiResponse({ status: 400, description: 'Cannot refund this sale' })
-  @ApiResponse({ status: 404, description: 'Sale not found' })
-  refund(
-    @Param('id') id: string,
-    @Body() body: { reason?: string },
-  ) {
-    return this.salesService.refund(id, body.reason);
-  }
 }

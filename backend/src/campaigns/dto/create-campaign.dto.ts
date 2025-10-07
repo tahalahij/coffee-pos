@@ -1,4 +1,4 @@
-import { CampaignType, DiscountType, LoyaltyTier } from '@prisma/client';
+import { CampaignType, DiscountType, LoyaltyTier } from '../models/discount-campaign.model';
 
 export class CreateCampaignDto {
   name: string;
@@ -12,5 +12,5 @@ export class CreateCampaignDto {
   maxDiscount?: number;
   usageLimit?: number;
   targetTier?: LoyaltyTier;
-  productIds?: string[];
+  productIds?: number[];
 }

@@ -32,19 +32,12 @@ export class PurchasesController {
     return this.purchasesService.findAll();
   }
 
-  @Get('summary')
-  @ApiOperation({ summary: 'Get purchases summary and analytics' })
-  @ApiResponse({ status: 200, description: 'Purchase summary retrieved successfully' })
-  getPurchasesSummary() {
-    return this.purchasesService.getPurchasesSummary();
-  }
-
   @Get(':id')
   @ApiOperation({ summary: 'Get purchase by ID' })
   @ApiResponse({ status: 200, description: 'Purchase retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Purchase not found' })
   findOne(@Param('id') id: string) {
-    return this.purchasesService.findOne(id);
+    return this.purchasesService.findOne(parseInt(id));
   }
 
   @Patch(':id')
@@ -52,7 +45,7 @@ export class PurchasesController {
   @ApiResponse({ status: 200, description: 'Purchase updated successfully' })
   @ApiResponse({ status: 404, description: 'Purchase not found' })
   update(@Param('id') id: string, @Body() updatePurchaseDto: UpdatePurchaseDto) {
-    return this.purchasesService.update(id, updatePurchaseDto);
+    return this.purchasesService.update(parseInt(id), updatePurchaseDto);
   }
 
   @Post(':id/receive')
@@ -82,6 +75,6 @@ export class PurchasesController {
   @ApiResponse({ status: 204, description: 'Purchase deleted successfully' })
   @ApiResponse({ status: 400, description: 'Cannot delete received purchase' })
   remove(@Param('id') id: string) {
-    return this.purchasesService.remove(id);
+    return this.purchasesService.remove(parseInt(id));
   }
 }

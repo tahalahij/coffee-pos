@@ -6,7 +6,7 @@ import {
   Body,
   Param,
 } from '@nestjs/common';
-import { LoyaltyService } from './loyalty.service';
+import { LoyaltyService, LoyaltyTier } from './loyalty.service';
 
 @Controller('loyalty')
 export class LoyaltyController {

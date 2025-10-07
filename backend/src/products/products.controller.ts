@@ -9,6 +9,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
@@ -28,11 +29,11 @@ export class ProductsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all products' })
-  @ApiQuery({ name: 'categoryId', required: false })
+  @ApiQuery({ name: 'categoryId', required: false, type: Number })
   @ApiQuery({ name: 'isAvailable', required: false, type: Boolean })
   @ApiResponse({ status: 200, description: 'Products retrieved successfully' })
   findAll(
-    @Query('categoryId') categoryId?: string,
+    @Query('categoryId') categoryId?: number,
     @Query('isAvailable') isAvailable?: boolean,
   ) {
     return this.productsService.findAll(categoryId, isAvailable);
@@ -45,18 +46,11 @@ export class ProductsController {
     return this.productsService.getLowStockProducts();
   }
 
-  @Get('category/:categoryId')
-  @ApiOperation({ summary: 'Get products by category' })
-  @ApiResponse({ status: 200, description: 'Products retrieved successfully' })
-  getProductsByCategory(@Param('categoryId') categoryId: string) {
-    return this.productsService.getProductsByCategory(categoryId);
-  }
-
   @Get(':id')
   @ApiOperation({ summary: 'Get product by ID' })
   @ApiResponse({ status: 200, description: 'Product retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Product not found' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.productsService.findOne(id);
   }
 
@@ -64,8 +58,17 @@ export class ProductsController {
   @ApiOperation({ summary: 'Update product' })
   @ApiResponse({ status: 200, description: 'Product updated successfully' })
   @ApiResponse({ status: 404, description: 'Product not found' })
-  update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateProductDto: UpdateProductDto) {
     return this.productsService.update(id, updateProductDto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete product' })
+  @ApiResponse({ status: 204, description: 'Product deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.remove(id);
   }
 
   @Patch(':id/stock')
@@ -73,18 +76,9 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'Stock updated successfully' })
   @ApiResponse({ status: 404, description: 'Product not found' })
   updateStock(
-    @Param('id') id: string,
-    @Body() body: { quantity: number; operation: 'add' | 'subtract' },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { quantity: number }
   ) {
-    return this.productsService.updateStock(id, body.quantity, body.operation);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete product' })
-  @ApiResponse({ status: 204, description: 'Product deleted successfully' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  remove(@Param('id') id: string) {
-    return this.productsService.remove(id);
+    return this.productsService.updateStock(id, body.quantity);
   }
 }

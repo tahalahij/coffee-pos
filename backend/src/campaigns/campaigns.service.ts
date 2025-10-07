@@ -1,11 +1,25 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { CampaignType, CampaignStatus, DiscountType, LoyaltyTier } from '@prisma/client';
+import { InjectModel } from '@nestjs/sequelize';
+import { DiscountCampaign, CampaignProduct, CampaignParticipation, CampaignStatus, DiscountType, CampaignType, LoyaltyTier } from './models/discount-campaign.model';
+import { Customer } from '../customers/models/customer.model';
+import { Sale } from '../sales/models/sale.model';
+import { Op } from 'sequelize';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 
 @Injectable()
 export class CampaignsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectModel(DiscountCampaign)
+    private discountCampaignModel: typeof DiscountCampaign,
+    @InjectModel(CampaignProduct)
+    private campaignProductModel: typeof CampaignProduct,
+    @InjectModel(CampaignParticipation)
+    private campaignParticipationModel: typeof CampaignParticipation,
+    @InjectModel(Customer)
+    private customerModel: typeof Customer,
+    @InjectModel(Sale)
+    private saleModel: typeof Sale,
+  ) {}
 
   async createCampaign(data: CreateCampaignDto) {
     if (!data.name || data.name.trim() === '') {
@@ -31,112 +45,88 @@ export class CampaignsService {
       throw new BadRequestException('Percentage discount cannot exceed 100%');
     }
 
-    const campaign = await this.prisma.campaign.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        type: data.type,
-        startDate,
-        endDate,
-        discountType: data.discountType,
-        discountValue: data.discountValue,
-        minPurchase: data.minPurchase,
-        maxDiscount: data.maxDiscount,
-        usageLimit: data.usageLimit,
-        targetTier: data.targetTier,
-        status: CampaignStatus.DRAFT,
-      },
-      include: {
-        products: true,
-        participations: true,
-        _count: {
-          select: {
-            participations: true,
-            sales: true,
-          },
-        },
-      },
+    const campaign = await this.discountCampaignModel.create({
+      name: data.name,
+      description: data.description,
+      type: data.type,
+      startDate,
+      endDate,
+      discountType: data.discountType,
+      discountValue: data.discountValue,
+      minPurchase: data.minPurchase,
+      maxDiscount: data.maxDiscount,
+      usageLimit: data.usageLimit,
+      targetTier: data.targetTier,
+      status: CampaignStatus.DRAFT,
     });
 
     if (data.productIds && data.productIds.length > 0) {
-      await this.prisma.campaignProduct.createMany({
-        data: data.productIds.map(productId => ({
+      await this.campaignProductModel.bulkCreate(
+        data.productIds.map(productId => ({
           campaignId: campaign.id,
           productId,
-        })),
-      });
+        }))
+      );
     }
 
-    return campaign;
+    return this.getCampaignById(campaign.id);
   }
 
   async getCampaigns(status?: CampaignStatus) {
-    const where = status ? { status } : {};
+    const whereCondition = status ? { status } : {};
 
-    return this.prisma.campaign.findMany({
-      where,
-      include: {
-        products: {
-          include: {
-            product: {
-              select: { id: true, name: true, price: true },
-            },
-          },
+    return this.discountCampaignModel.findAll({
+      where: whereCondition,
+      include: [
+        {
+          model: CampaignProduct,
+          as: 'products',
         },
-        participations: true,
-        _count: {
-          select: {
-            participations: true,
-            sales: true,
-          },
+        {
+          model: CampaignParticipation,
+          as: 'participations',
         },
-      },
-      orderBy: { createdAt: 'desc' },
+      ],
+      order: [['createdAt', 'DESC']],
     });
   }
 
-  async getActiveCampaigns(customerId?: string, productIds?: string[]) {
+  async getActiveCampaigns(customerId?: number, productIds?: number[]) {
     const now = new Date();
 
-    const where: any = {
+    const whereCondition: any = {
       status: CampaignStatus.ACTIVE,
       isActive: true,
-      startDate: { lte: now },
-      endDate: { gte: now },
+      startDate: { [Op.lte]: now },
+      endDate: { [Op.gte]: now },
     };
 
     if (customerId) {
-      const customer = await this.prisma.customer.findUnique({
-        where: { id: customerId },
-        select: { loyaltyTier: true },
+      const customer = await this.customerModel.findByPk(customerId, {
+        attributes: ['loyaltyTier'],
       });
 
       if (customer) {
-        where.OR = [
+        whereCondition[Op.or] = [
           { targetTier: null },
           { targetTier: customer.loyaltyTier },
         ];
       }
     }
 
-    const campaigns = await this.prisma.campaign.findMany({
-      where,
-      include: {
-        products: {
-          include: {
-            product: {
-              select: { id: true, name: true, price: true },
-            },
-          },
+    const campaigns = await this.discountCampaignModel.findAll({
+      where: whereCondition,
+      include: [
+        {
+          model: CampaignProduct,
+          as: 'products',
         },
-        _count: {
-          select: {
-            participations: true,
-            sales: true,
-          },
+        {
+          model: CampaignParticipation,
+          as: 'participations',
         },
-      },
-      orderBy: { discountValue: 'desc' },
+      ],
+      order: [['discountValue', 'DESC']],
     });
 
     if (productIds && productIds.length > 0) {
@@ -149,31 +139,24 @@ export class CampaignsService {
     return campaigns;
   }
 
-  async getCampaignById(id: string) {
-    const campaign = await this.prisma.campaign.findUnique({
-      where: { id },
-      include: {
-        products: {
-          include: {
-            product: {
-              select: { id: true, name: true, price: true },
+  async getCampaignById(id: number) {
+    const campaign = await this.discountCampaignModel.findByPk(id, {
+      include: [
+        {
+          model: CampaignProduct,
+          as: 'products',
+        },
+        {
+          model: CampaignParticipation,
+          as: 'participations',
+          include: [
+            {
+              model: Customer,
+              attributes: ['id', 'name', 'phone'],
             },
-          },
+          ],
         },
-        participations: {
-          include: {
-            customer: {
-              select: { id: true, name: true, phone: true },
-            },
-          },
-        },
-        _count: {
-          select: {
-            participations: true,
-            sales: true,
-          },
-        },
-      },
+      ],
     });
 
     if (!campaign) {
@@ -183,7 +166,7 @@ export class CampaignsService {
     return campaign;
   }
 
-  async updateCampaign(id: string, data: Partial<CreateCampaignDto>) {
+  async updateCampaign(id: number, data: Partial<CreateCampaignDto>) {
     await this.getCampaignById(id);
 
     const updateData: any = {};
@@ -200,47 +183,51 @@ export class CampaignsService {
     if (data.usageLimit !== undefined) updateData.usageLimit = data.usageLimit;
     if (data.targetTier !== undefined) updateData.targetTier = data.targetTier;
 
-    return this.prisma.campaign.update({
-      where: { id },
-      data: updateData,
-      include: {
-        products: true,
-        participations: true,
-        _count: {
-          select: {
-            participations: true,
-            sales: true,
-          },
-        },
-      },
-    });
+    await this.discountCampaignModel.update(
+      updateData,
+      {
+        where: { id },
+      }
+    );
+
+    return this.getCampaignById(id);
   }
 
-  async activateCampaign(id: string) {
+  async activateCampaign(id: number) {
     await this.getCampaignById(id); // Check if exists
 
-    return this.prisma.campaign.update({
-      where: { id },
-      data: {
+    const [, updatedRows] = await this.discountCampaignModel.update(
+      {
         status: CampaignStatus.ACTIVE,
         isActive: true,
       },
-    });
+      {
+        where: { id },
+        returning: true,
+      }
+    );
+
+    return updatedRows[0];
   }
 
-  async pauseCampaign(id: string) {
-    const campaign = await this.getCampaignById(id);
+  async pauseCampaign(id: number) {
+    await this.getCampaignById(id);
 
-    return this.prisma.campaign.update({
-      where: { id },
-      data: {
+    const [, updatedRows] = await this.discountCampaignModel.update(
+      {
         status: CampaignStatus.PAUSED,
         isActive: false,
       },
-    });
+      {
+        where: { id },
+        returning: true,
+      }
+    );
+
+    return updatedRows[0];
   }
 
-  async applyCampaignDiscount(id: string, customerId: string, subtotal: number, productIds?: string[]) {
+  async applyCampaignDiscount(id: number, customerId: number, subtotal: number) {
     const campaign = await this.getCampaignById(id);
 
     const now = new Date();
@@ -257,9 +244,8 @@ export class CampaignsService {
     }
 
     if (campaign.targetTier) {
-      const customer = await this.prisma.customer.findUnique({
-        where: { id: customerId },
-        select: { loyaltyTier: true },
+      const customer = await this.customerModel.findByPk(customerId, {
+        attributes: ['loyaltyTier'],
       });
 
       if (!customer || customer.loyaltyTier !== campaign.targetTier) {
@@ -271,7 +257,7 @@ export class CampaignsService {
       throw new BadRequestException('Campaign usage limit reached');
     }
 
-    let discountAmount = 0;
+    let discountAmount;
     if (campaign.discountType === DiscountType.PERCENTAGE) {
       discountAmount = (subtotal * Number(campaign.discountValue)) / 100;
     } else {
@@ -282,26 +268,21 @@ export class CampaignsService {
       discountAmount = Number(campaign.maxDiscount);
     }
 
-    await this.prisma.campaignParticipation.upsert({
+    // Check if participation already exists
+    await this.campaignParticipationModel.findOrCreate({
       where: {
-        campaignId_customerId: {
-          campaignId: id,
-          customerId,
-        },
-      },
-      create: {
         campaignId: id,
         customerId,
-        usageCount: 1,
       },
-      update: {
-        usageCount: { increment: 1 },
+      defaults: {
+        campaignId: id,
+        customerId,
       },
     });
 
-    await this.prisma.campaign.update({
+    // Increment campaign usage count
+    await this.discountCampaignModel.increment('usageCount', {
       where: { id },
-      data: { usageCount: { increment: 1 } },
     });
 
     return {
@@ -317,25 +298,22 @@ export class CampaignsService {
     };
   }
 
-  async getCampaignAnalytics(id: string) {
+  async getCampaignAnalytics(id: number) {
     const campaign = await this.getCampaignById(id);
 
-    const participations = await this.prisma.campaignParticipation.findMany({
+    const participations = await this.campaignParticipationModel.findAll({
       where: { campaignId: id },
-      include: {
-        customer: {
-          select: { loyaltyTier: true },
+      include: [
+        {
+          model: Customer,
+          attributes: ['loyaltyTier'],
         },
-      },
+      ],
     });
 
-    const sales = await this.prisma.sale.findMany({
-      where: { campaignId: id },
-      select: {
-        totalAmount: true,
-        discountAmount: true,
-        createdAt: true,
-      },
+    const sales = await this.saleModel.findAll({
+      where: { discountCampaignId: id },
+      attributes: ['totalAmount', 'discountAmount', 'createdAt'],
     });
 
     const totalRevenue = sales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
@@ -363,14 +341,9 @@ export class CampaignsService {
     };
   }
 
-  async getRecommendedCampaigns(customerId: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-      select: {
-        loyaltyTier: true,
-        totalSpent: true,
-        visitCount: true,
-      },
+  async getRecommendedCampaigns(customerId: number) {
+    const customer = await this.customerModel.findByPk(customerId, {
+      attributes: ['loyaltyTier', 'totalSpent', 'visitCount'],
     });
 
     if (!customer) {
@@ -379,90 +352,133 @@ export class CampaignsService {
 
     const now = new Date();
 
-    return this.prisma.campaign.findMany({
+    return this.discountCampaignModel.findAll({
       where: {
         status: CampaignStatus.ACTIVE,
         isActive: true,
-        startDate: { lte: now },
-        endDate: { gte: now },
-        OR: [
+        startDate: { [Op.lte]: now },
+        endDate: { [Op.gte]: now },
+        [Op.or]: [
           { targetTier: null },
           { targetTier: customer.loyaltyTier },
         ],
       },
-      include: {
-        products: {
-          include: {
-            product: {
-              select: { id: true, name: true, price: true },
-            },
-          },
+      include: [
+        {
+          model: CampaignProduct,
+          as: 'products',
         },
-      },
-      orderBy: { discountValue: 'desc' },
-      take: 5,
+      ],
+      order: [['discountValue', 'DESC']],
+      limit: 10,
     });
   }
 
-  async createAutomaticCampaigns() {
-    const welcomeCampaign = await this.prisma.campaign.create({
-      data: {
-        name: 'Welcome New Customers',
-        description: 'Special discount for new customers',
-        type: CampaignType.NEW_CUSTOMER,
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        discountType: DiscountType.PERCENTAGE,
-        discountValue: 10,
-        targetTier: LoyaltyTier.BRONZE,
-        status: CampaignStatus.ACTIVE,
+  async deleteCampaign(id: number) {
+    await this.getCampaignById(id); // Check if exists
+
+    // Delete related records first
+    await this.campaignProductModel.destroy({
+      where: { campaignId: id },
+    });
+
+    await this.campaignParticipationModel.destroy({
+      where: { campaignId: id },
+    });
+
+    await this.discountCampaignModel.destroy({
+      where: { id },
+    });
+
+    return { message: 'Campaign deleted successfully' };
+  }
+
+  async getCampaignStats() {
+    const totalCampaigns = await this.discountCampaignModel.count();
+    const activeCampaigns = await this.discountCampaignModel.count({
+      where: { status: CampaignStatus.ACTIVE },
+    });
+
+    const now = new Date();
+    const expiredCampaigns = await this.discountCampaignModel.count({
+      where: {
+        endDate: { [Op.lt]: now },
       },
     });
 
-    const loyaltyCampaign = await this.prisma.campaign.create({
-      data: {
-        name: 'Loyalty Rewards',
-        description: 'Extra discount for loyal customers',
-        type: CampaignType.LOYALTY_BONUS,
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
-        discountType: DiscountType.PERCENTAGE,
-        discountValue: 15,
-        targetTier: LoyaltyTier.GOLD,
-        minPurchase: 50,
-        status: CampaignStatus.ACTIVE,
+    const totalParticipations = await this.campaignParticipationModel.count();
+    const totalSales = await this.saleModel.count({
+      where: {
+        discountCampaignId: { [Op.not]: null },
       },
     });
 
     return {
-      created: [welcomeCampaign, loyaltyCampaign],
-      message: 'Automatic campaigns created successfully',
+      totalCampaigns,
+      activeCampaigns,
+      expiredCampaigns,
+      totalParticipations,
+      totalSales,
+      conversionRate: totalParticipations > 0 ? (totalSales / totalParticipations) * 100 : 0,
     };
   }
 
   private groupParticipationsByTier(participations: any[]) {
-    const groups = participations.reduce((acc, p) => {
-      const tier = p.customer.loyaltyTier;
+    return participations.reduce((acc, participation) => {
+      const tier = participation.customer?.loyaltyTier || 'UNKNOWN';
       acc[tier] = (acc[tier] || 0) + 1;
       return acc;
     }, {});
-
-    return Object.entries(groups).map(([tier, count]) => ({
-      tier,
-      count,
-    }));
   }
 
   private groupSalesByDay(sales: any[]) {
-    const groups = sales.reduce((acc, sale) => {
+    return sales.reduce((acc, sale) => {
       const date = sale.createdAt.toISOString().split('T')[0];
-      acc[date] = (acc[date] || 0) + 1;
+      if (!acc[date]) {
+        acc[date] = { count: 0, revenue: 0, discountGiven: 0 };
+      }
+      acc[date].count += 1;
+      acc[date].revenue += Number(sale.totalAmount);
+      acc[date].discountGiven += Number(sale.discountAmount);
       return acc;
     }, {});
+  }
 
-    return Object.entries(groups).map(([date, count]) => ({
-      date,
-      count,
-    }));
+  async createAutomaticCampaigns() {
+    // Create some automatic campaigns based on business logic
+    const campaigns = [];
+
+    // Example: Create a loyalty tier campaign
+    const loyaltyCampaign = await this.createCampaign({
+      name: 'Loyalty Reward Campaign',
+      description: 'Automatic discount for loyal customers',
+      type: CampaignType.LOYALTY_BONUS,
+      startDate: new Date().toISOString(),
+      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+      discountType: DiscountType.PERCENTAGE,
+      discountValue: 15,
+      minPurchase: 50,
+      targetTier: LoyaltyTier.GOLD,
+    });
+    campaigns.push(loyaltyCampaign);
+
+    // Example: Create a seasonal offer
+    const seasonalCampaign = await this.createCampaign({
+      name: 'Seasonal Special Offer',
+      description: 'Automatic seasonal discount',
+      type: CampaignType.SEASONAL_OFFER,
+      startDate: new Date().toISOString(),
+      endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days
+      discountType: DiscountType.FIXED,
+      discountValue: 10,
+      minPurchase: 25,
+      usageLimit: 100,
+    });
+    campaigns.push(seasonalCampaign);
+
+    return {
+      message: 'Automatic campaigns created successfully',
+      campaigns,
+    };
   }
 }

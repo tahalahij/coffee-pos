@@ -1,6 +1,6 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { PrismaModule } from './prisma/prisma.module';
+import { DatabaseModule } from './database/database.module';
 import { CategoriesModule } from './categories/categories.module';
 import { ProductsModule } from './products/products.module';
 import { SalesModule } from './sales/sales.module';
@@ -19,7 +19,7 @@ import { LoyaltyModule } from './loyalty/loyalty.module';
       envFilePath: ['.env'],
       expandVariables: true,
     }),
-    PrismaModule,
+    DatabaseModule,
     CustomersModule,
     CategoriesModule,
     ProductsModule,

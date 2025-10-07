@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { X, CreditCard, Banknote, Smartphone, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatCurrency, generateReceiptId } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import { CartItem } from '@/types'
 import { useSalesStore } from '@/hooks/use-sales-store'
 import toast from 'react-hot-toast'
@@ -33,41 +33,39 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
   const handlePayment = async () => {
     setIsProcessing(true)
 
-    // Simulate payment processing
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    try {
+      // Create simplified sale data - let backend handle the logic
+      const saleData = {
+        paymentMethod,
+        customerId: customer ? customer.id : undefined,
+        cashReceived: paymentMethod === 'CASH' ? cashReceived : undefined,
+        items: items.map(item => ({
+          productId: item.id.split('-')[0], // Extract product ID from cart item ID
+          quantity: item.quantity,
+          unitPrice: item.price,
+          product: {
+            name: item.product.name,
+            price: item.product.price
+          }
+        }))
+      }
 
-    const receiptId = generateReceiptId()
-    const subtotal = total / 1.08 // Remove tax to get subtotal
-    const taxAmount = total - subtotal
+      // Send to backend API - let it calculate totals, generate receipt, etc.
+      const response = await api.post('/sales', saleData)
+      const createdSale = response.data
 
-    // Create sale data
-    const saleData = {
-      receiptNumber: receiptId,
-      subtotal,
-      taxAmount,
-      discountAmount: 0,
-      totalAmount: total,
-      paymentMethod,
-      status: 'COMPLETED' as const,
-      cashReceived: paymentMethod === 'CASH' ? cashReceived : undefined,
-      changeGiven: paymentMethod === 'CASH' ? Math.max(0, cashReceived - total) : undefined,
-      customerId: customer ? customer.id : undefined,
-      items: items.map(item => ({
-        id: item.id,
-        product: { name: item.product.name, price: item.product.price },
-        quantity: item.quantity,
-        unitPrice: item.price,
-        totalAmount: item.price * item.quantity
-      }))
+      // Add to local sales store for immediate UI update
+      addSale(createdSale)
+
+      toast.success(`Payment successful! Receipt: ${createdSale.receiptNumber}`)
+      onComplete()
+    } catch (error: any) {
+      console.error('Payment processing error:', error)
+      const errorMessage = error.response?.data?.message || 'Payment failed. Please try again.'
+      toast.error(errorMessage)
+    } finally {
+      setIsProcessing(false)
     }
-
-    // Add to sales store
-    addSale(saleData)
-
-    toast.success(`Payment successful! Receipt: ${receiptId}`)
-
-    setIsProcessing(false)
-    onComplete()
   }
 
   const change = paymentMethod === 'CASH' ? Math.max(0, cashReceived - total) : 0

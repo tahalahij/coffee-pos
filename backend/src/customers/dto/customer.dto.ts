@@ -22,6 +22,11 @@ export class CreateCustomerDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsDateString()
   dateOfBirth?: string;
 }
@@ -46,6 +51,11 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  address?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

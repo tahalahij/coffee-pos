@@ -8,6 +8,7 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
@@ -43,7 +44,7 @@ export class CategoriesController {
   @ApiOperation({ summary: 'Get category by ID' })
   @ApiResponse({ status: 200, description: 'Category retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Category not found' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.categoriesService.findOne(id);
   }
 
@@ -51,16 +52,16 @@ export class CategoriesController {
   @ApiOperation({ summary: 'Update category' })
   @ApiResponse({ status: 200, description: 'Category updated successfully' })
   @ApiResponse({ status: 404, description: 'Category not found' })
-  update(@Param('id') id: string, @Body() updateCategoryDto: UpdateCategoryDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateCategoryDto: UpdateCategoryDto) {
     return this.categoriesService.update(id, updateCategoryDto);
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete category' })
   @ApiResponse({ status: 204, description: 'Category deleted successfully' })
   @ApiResponse({ status: 404, description: 'Category not found' })
-  remove(@Param('id') id: string) {
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id', ParseIntPipe) id: number) {
     return this.categoriesService.remove(id);
   }
 }

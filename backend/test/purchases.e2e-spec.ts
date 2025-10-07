@@ -160,6 +160,42 @@ describe('PurchasesController (e2e)', () => {
 
   describe('/purchases/:id/receive (POST)', () => {
     it('should receive purchase and update product stock', async () => {
+      // Ensure the product still exists (in case global cleanup affected it)
+      let testProduct = await prisma.product.findUnique({
+        where: { id: createdProduct.id },
+      });
+
+      // If product was deleted by global cleanup, recreate it
+      if (!testProduct) {
+        // Ensure category exists too
+        let testCategory = await prisma.category.findUnique({
+          where: { id: createdCategory.id },
+        });
+
+        if (!testCategory) {
+          testCategory = await prisma.category.create({
+            data: {
+              name: 'Purchase Test Category',
+              color: '#0000FF',
+              isActive: true,
+            },
+          });
+          createdCategory = testCategory;
+        }
+
+        testProduct = await prisma.product.create({
+          data: {
+            name: 'Purchase Test Product',
+            price: 20.00,
+            cost: 8.00,
+            stock: 50,
+            categoryId: testCategory.id,
+            isAvailable: true,
+          },
+        });
+        createdProduct = testProduct;
+      }
+
       // First create a new purchase to receive
       const newPurchase = await prisma.purchase.create({
         data: {
@@ -172,7 +208,7 @@ describe('PurchasesController (e2e)', () => {
       await prisma.purchaseItem.create({
         data: {
           purchaseId: newPurchase.id,
-          productId: createdProduct.id,
+          productId: testProduct.id,
           quantity: 25,
           unitCost: 8.00,
           totalCost: 200.00,
@@ -181,7 +217,7 @@ describe('PurchasesController (e2e)', () => {
 
       // Get initial stock
       const initialProduct = await prisma.product.findUnique({
-        where: { id: createdProduct.id },
+        where: { id: testProduct.id },
       });
 
       const response = await request(app.getHttpServer())
@@ -192,7 +228,7 @@ describe('PurchasesController (e2e)', () => {
 
       // Verify stock was updated
       const updatedProduct = await prisma.product.findUnique({
-        where: { id: createdProduct.id },
+        where: { id: testProduct.id },
       });
 
       expect(updatedProduct.stock).toBe(initialProduct.stock + 25);

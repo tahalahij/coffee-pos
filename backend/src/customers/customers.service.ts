@@ -1,10 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/sequelize';
+import { Customer } from './models/customer.model';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
+import { Op } from 'sequelize';
 
 @Injectable()
 export class CustomersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Customer)
+    private customerModel: typeof Customer,
+  ) {}
 
   async create(data: CreateCustomerDto) {
     // Validate required fields
@@ -22,7 +27,7 @@ export class CustomersService {
     }
 
     // Check for duplicate phone number
-    const existingCustomer = await this.prisma.customer.findUnique({
+    const existingCustomer = await this.customerModel.findOne({
       where: { phone: data.phone },
     });
 
@@ -32,7 +37,7 @@ export class CustomersService {
 
     // Check for duplicate email if provided
     if (data.email) {
-      const existingEmail = await this.prisma.customer.findUnique({
+      const existingEmail = await this.customerModel.findOne({
         where: { email: data.email },
       });
 
@@ -41,36 +46,25 @@ export class CustomersService {
       }
     }
 
-    return this.prisma.customer.create({
-      data: {
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
-        loyaltyTier: 'BRONZE',
-        loyaltyPoints: 0,
-        totalSpent: 0,
-        visitCount: 0,
-      }
+    return this.customerModel.create({
+      name: data.name,
+      phone: data.phone,
+      email: data.email,
+      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+      loyaltyPoints: 0,
+      totalSpent: 0,
+      isActive: true,
     });
   }
 
   async findAll() {
-    return this.prisma.customer.findMany({
-      orderBy: { createdAt: 'desc' },
+    return this.customerModel.findAll({
+      order: [['name', 'ASC']],
     });
   }
 
-  async findOne(id: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id },
-      include: {
-        discountCodes: {
-          take: 5,
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    });
+  async findOne(id: number) {
+    const customer = await this.customerModel.findByPk(id);
 
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${id} not found`);
@@ -79,30 +73,33 @@ export class CustomersService {
     return customer;
   }
 
-  async update(id: string, data: UpdateCustomerDto) {
-    // Check if customer exists
-    await this.findOne(id);
+  async update(id: number, updateData: UpdateCustomerDto) {
+    const customer = await this.customerModel.findByPk(id);
 
-    // Check for duplicate phone number (excluding current customer)
-    if (data.phone) {
-      const existingCustomer = await this.prisma.customer.findFirst({
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+
+    // Check for duplicate phone if phone is being updated
+    if (updateData.phone && updateData.phone !== customer.phone) {
+      const existingPhone = await this.customerModel.findOne({
         where: {
-          phone: data.phone,
-          NOT: { id },
+          phone: updateData.phone,
+          id: { [Op.ne]: id }
         },
       });
 
-      if (existingCustomer) {
+      if (existingPhone) {
         throw new ConflictException('Phone number already exists');
       }
     }
 
-    // Check for duplicate email (excluding current customer)
-    if (data.email) {
-      const existingEmail = await this.prisma.customer.findFirst({
+    // Check for duplicate email if email is being updated
+    if (updateData.email && updateData.email !== customer.email) {
+      const existingEmail = await this.customerModel.findOne({
         where: {
-          email: data.email,
-          NOT: { id },
+          email: updateData.email,
+          id: { [Op.ne]: id }
         },
       });
 
@@ -111,87 +108,60 @@ export class CustomersService {
       }
     }
 
-    return this.prisma.customer.update({
-      where: { id },
-      data: {
-        ...data,
-        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
-      },
-    });
+    // Transform updateData to handle dateOfBirth conversion
+    const transformedData = {
+      ...updateData,
+      ...(updateData.dateOfBirth && { dateOfBirth: new Date(updateData.dateOfBirth) })
+    };
+
+    await customer.update(transformedData);
+    return customer;
   }
 
-  async remove(id: string) {
-    // Check if customer exists
-    await this.findOne(id);
+  async remove(id: number) {
+    const customer = await this.customerModel.findByPk(id);
 
-    return this.prisma.customer.delete({
-      where: { id },
-    });
-  }
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
 
-  async findByPhone(phone: string) {
-    return this.prisma.customer.findUnique({ where: { phone } });
+    await customer.destroy();
+    return { message: 'Customer deleted successfully' };
   }
 
   async search(query: string) {
-    if (!query || query.trim() === '') {
-      return [];
-    }
-
-    try {
-      return await this.prisma.customer.findMany({
-        where: {
-          OR: [
-            { name: { contains: query, mode: 'insensitive' } },
-            { phone: { contains: query } },
-            { email: { contains: query, mode: 'insensitive' } },
-          ],
-        },
-        orderBy: { name: 'asc' },
-        take: 10,
-      });
-    } catch (error) {
-      throw new BadRequestException('Failed to search customers');
-    }
-  }
-
-  async getDiscountCodes(customerId: string) {
-    // Check if customer exists
-    await this.findOne(customerId);
-
-    return this.prisma.discountCode.findMany({
-      where: { customerId },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async generateDiscountCode(customerId: string, data: { type: string; value: number; expiresAt?: string }) {
-    // Check if customer exists
-    await this.findOne(customerId);
-
-    // Generate unique code
-    const code = this.generateUniqueCode();
-
-    return this.prisma.discountCode.create({
-      data: {
-        code,
-        name: 'Customer Discount',
-        description: 'Generated discount code for customer',
-        type: data.type as any,
-        value: data.value,
-        customerId,
-        usageLimit: 1,
-        expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+    return this.customerModel.findAll({
+      where: {
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${query}%` } },
+          { phone: { [Op.like]: `%${query}%` } },
+          { email: { [Op.iLike]: `%${query}%` } },
+        ],
       },
+      order: [['name', 'ASC']],
+      limit: 10,
     });
   }
 
-  private generateUniqueCode(): string {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += characters.charAt(Math.floor(Math.random() * characters.length));
+  async addLoyaltyPoints(id: number, points: number) {
+    const customer = await this.customerModel.findByPk(id);
+
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
     }
-    return result;
+
+    await customer.increment('loyaltyPoints', { by: points });
+    return customer.reload();
+  }
+
+  async updateTotalSpent(id: number, amount: number) {
+    const customer = await this.customerModel.findByPk(id);
+
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+
+    await customer.increment('totalSpent', { by: amount });
+    return customer.reload();
   }
 }

@@ -8,11 +8,12 @@ import {
   Query,
   Param,
   HttpCode,
-  HttpStatus
+  HttpStatus,
+  ParseIntPipe
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
-import { CreateCustomerDto, UpdateCustomerDto, SearchCustomerDto } from './dto/customer.dto';
+import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
 
 @ApiTags('customers')
 @Controller('customers')
@@ -36,25 +37,17 @@ export class CustomersController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Search customers' })
+  @ApiOperation({ summary: 'Search customers by name, phone, or email' })
   @ApiResponse({ status: 200, description: 'Search results retrieved successfully' })
   search(@Query('q') query: string) {
     return this.customersService.search(query);
-  }
-
-  @Get('phone/:phone')
-  @ApiOperation({ summary: 'Find customer by phone number' })
-  @ApiResponse({ status: 200, description: 'Customer found' })
-  @ApiResponse({ status: 404, description: 'Customer not found' })
-  findByPhone(@Param('phone') phone: string) {
-    return this.customersService.findByPhone(phone);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get customer by ID' })
   @ApiResponse({ status: 200, description: 'Customer retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.customersService.findOne(id);
   }
 
@@ -62,36 +55,27 @@ export class CustomersController {
   @ApiOperation({ summary: 'Update customer' })
   @ApiResponse({ status: 200, description: 'Customer updated successfully' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
-  @ApiResponse({ status: 409, description: 'Phone number or email already exists' })
-  update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateCustomerDto: UpdateCustomerDto) {
     return this.customersService.update(id, updateCustomerDto);
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete customer' })
   @ApiResponse({ status: 204, description: 'Customer deleted successfully' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
-  remove(@Param('id') id: string) {
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id', ParseIntPipe) id: number) {
     return this.customersService.remove(id);
   }
 
-  @Get(':id/discount-codes')
-  @ApiOperation({ summary: 'Get customer discount codes' })
-  @ApiResponse({ status: 200, description: 'Discount codes retrieved successfully' })
+  @Post(':id/loyalty-points')
+  @ApiOperation({ summary: 'Add loyalty points to customer' })
+  @ApiResponse({ status: 200, description: 'Loyalty points added successfully' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
-  getDiscountCodes(@Param('id') id: string) {
-    return this.customersService.getDiscountCodes(id);
-  }
-
-  @Post(':id/discount-codes')
-  @ApiOperation({ summary: 'Generate discount code for customer' })
-  @ApiResponse({ status: 201, description: 'Discount code generated successfully' })
-  @ApiResponse({ status: 404, description: 'Customer not found' })
-  generateDiscountCode(
-    @Param('id') id: string,
-    @Body() data: { type: string; value: number; expiresAt?: string }
+  addLoyaltyPoints(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { points: number }
   ) {
-    return this.customersService.generateDiscountCode(id, data);
+    return this.customersService.addLoyaltyPoints(id, body.points);
   }
 }

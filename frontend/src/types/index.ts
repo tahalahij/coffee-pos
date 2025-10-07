@@ -1,22 +1,26 @@
 export interface Product {
-  id: string
+  id: number
   name: string
   description?: string
   price: number
-  category_id: string
-  image_url?: string
-  is_available: boolean
-  created_at: Date
-  updated_at: Date
+  categoryId: number
+  imageUrl?: string
+  isAvailable: boolean
+  stock?: number
+  cost?: number
+  sku?: string
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface Category {
-  id: string
+  id: number
   name: string
   description?: string
   color: string
-  created_at: Date
-  updated_at: Date
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface CartItem {

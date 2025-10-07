@@ -1,11 +1,20 @@
 module.exports = {
   displayName: 'Unit Tests',
-  testMatch: ['<rootDir>/src/**/*.spec.ts'],
+  moduleFileExtensions: ['js', 'json', 'ts'],
+  rootDir: 'src',
+  testRegex: '.*\\.spec\\.ts$',
+  transform: {
+    '^.+\\.(t|j)s$': 'ts-jest',
+  },
   collectCoverageFrom: [
-    'src/**/*.(t|j)s',
-    '!src/**/*.spec.ts',
-    '!src/**/*.e2e-spec.ts',
+    '**/*.(t|j)s',
+    '!**/*.spec.ts',
+    '!**/*.e2e-spec.ts',
+    '!**/node_modules/**',
   ],
-  coverageDirectory: '../coverage/unit',
+  coverageDirectory: '../coverage',
+  testEnvironment: 'node',
+  moduleNameMapper: {
+    '^src/(.*)$': '<rootDir>/$1',
+  },
 };
-

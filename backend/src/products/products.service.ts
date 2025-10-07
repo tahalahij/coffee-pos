@@ -1,10 +1,18 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/sequelize';
+import { Product } from './models/product.model';
+import { Category } from '../categories/models/category.model';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import { Op } from 'sequelize';
 
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Product)
+    private productModel: typeof Product,
+    @InjectModel(Category)
+    private categoryModel: typeof Category,
+  ) {}
 
   async create(createProductDto: CreateProductDto) {
     // Validate required fields
@@ -13,17 +21,24 @@ export class ProductsService {
     }
 
     // Check if category exists
-    const category = await this.prisma.category.findUnique({
-      where: { id: createProductDto.categoryId },
-    });
+    const category = await this.categoryModel.findByPk(createProductDto.categoryId);
 
     if (!category) {
       throw new BadRequestException('Category not found');
     }
 
+    // Check if product name is unique
+    const existingProduct = await this.productModel.findOne({
+      where: { name: createProductDto.name },
+    });
+
+    if (existingProduct) {
+      throw new BadRequestException('Product name already exists');
+    }
+
     // Check if SKU is unique (if provided)
     if (createProductDto.sku) {
-      const existingSku = await this.prisma.product.findUnique({
+      const existingSku = await this.productModel.findOne({
         where: { sku: createProductDto.sku },
       });
 
@@ -32,15 +47,13 @@ export class ProductsService {
       }
     }
 
-    return this.prisma.product.create({
-      data: createProductDto,
-      include: {
-        category: true,
-      },
+    const product = await this.productModel.create(createProductDto);
+    return this.productModel.findByPk(product.id, {
+      include: [{ model: Category, as: 'category' }],
     });
   }
 
-  async findAll(categoryId?: string, isAvailable?: boolean) {
+  async findAll(categoryId?: number, isAvailable?: boolean) {
     const where: any = {};
 
     if (categoryId) {
@@ -51,23 +64,16 @@ export class ProductsService {
       where.isAvailable = isAvailable;
     }
 
-    return this.prisma.product.findMany({
+    return this.productModel.findAll({
       where,
-      include: {
-        category: true,
-      },
-      orderBy: {
-        name: 'asc',
-      },
+      include: [{ model: Category, as: 'category' }],
+      order: [['name', 'ASC']],
     });
   }
 
-  async findOne(id: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
-      include: {
-        category: true,
-      },
+  async findOne(id: number) {
+    const product = await this.productModel.findByPk(id, {
+      include: [{ model: Category, as: 'category' }],
     });
 
     if (!product) {
@@ -77,26 +83,41 @@ export class ProductsService {
     return product;
   }
 
-  async update(id: string, updateProductDto: UpdateProductDto) {
-    await this.findOne(id); // Check if exists
+  async update(id: number, updateProductDto: UpdateProductDto) {
+    const product = await this.productModel.findByPk(id);
 
-    // Check if new category exists (if provided)
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
+    }
+
+    // Check if category exists (if categoryId is being updated)
     if (updateProductDto.categoryId) {
-      const category = await this.prisma.category.findUnique({
-        where: { id: updateProductDto.categoryId },
-      });
-
+      const category = await this.categoryModel.findByPk(updateProductDto.categoryId);
       if (!category) {
         throw new BadRequestException('Category not found');
       }
     }
 
-    // Check if new SKU is unique (if provided)
-    if (updateProductDto.sku) {
-      const existingSku = await this.prisma.product.findFirst({
+    // Check if product name is unique (if name is being updated)
+    if (updateProductDto.name && updateProductDto.name !== product.name) {
+      const existingProduct = await this.productModel.findOne({
+        where: {
+          name: updateProductDto.name,
+          id: { [Op.ne]: id }
+        },
+      });
+
+      if (existingProduct) {
+        throw new BadRequestException('Product name already exists');
+      }
+    }
+
+    // Check if SKU is unique (if SKU is being updated)
+    if (updateProductDto.sku && updateProductDto.sku !== product.sku) {
+      const existingSku = await this.productModel.findOne({
         where: {
           sku: updateProductDto.sku,
-          NOT: { id },
+          id: { [Op.ne]: id }
         },
       });
 
@@ -105,78 +126,47 @@ export class ProductsService {
       }
     }
 
-    return this.prisma.product.update({
-      where: { id },
-      data: updateProductDto,
-      include: {
-        category: true,
-      },
+    await product.update(updateProductDto);
+    return this.productModel.findByPk(id, {
+      include: [{ model: Category, as: 'category' }],
     });
   }
 
-  async remove(id: string) {
-    await this.findOne(id); // Check if exists
+  async remove(id: number) {
+    const product = await this.productModel.findByPk(id);
 
-    return this.prisma.product.delete({
-      where: { id },
-    });
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
+    }
+
+    await product.destroy();
+    return { message: 'Product deleted successfully' };
   }
 
-  async updateStock(id: string, quantity: number, operation: 'add' | 'subtract' = 'add') {
-    const product = await this.findOne(id);
+  async updateStock(id: number, quantity: number) {
+    const product = await this.productModel.findByPk(id);
 
-    // Ensure product.stock is a valid number
-    const currentStock = typeof product.stock === 'number' ? product.stock : 0;
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
+    }
 
-    const newStock = operation === 'add'
-      ? currentStock + quantity
-      : currentStock - quantity;
-
+    const newStock = product.stock + quantity;
     if (newStock < 0) {
       throw new BadRequestException('Insufficient stock');
     }
 
-    // Ensure newStock is a valid integer
-    const stockToUpdate = Math.floor(newStock);
-
-    return this.prisma.product.update({
-      where: { id },
-      data: { stock: stockToUpdate },
-      include: {
-        category: true,
-      },
-    });
+    await product.update({ stock: newStock });
+    return product;
   }
 
   async getLowStockProducts() {
-    return this.prisma.product.findMany({
+    return this.productModel.findAll({
       where: {
-        AND: [
-          { lowStockAlert: { not: null } },
-          { stock: { lte: 10 } }, // Use a fixed threshold for now
-        ],
-      },
-      include: {
-        category: true,
-      },
-      orderBy: {
-        stock: 'asc',
-      },
-    });
-  }
-
-  async getProductsByCategory(categoryId: string) {
-    return this.prisma.product.findMany({
-      where: {
-        categoryId,
+        stock: { [Op.lte]: this.productModel.sequelize.col('min_stock_level') },
         isAvailable: true,
       },
-      include: {
-        category: true,
-      },
-      orderBy: {
-        name: 'asc',
-      },
+      include: [{ model: Category, as: 'category' }],
+      order: [['stock', 'ASC']],
     });
   }
 }

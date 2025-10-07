@@ -3,142 +3,57 @@
 import { useState, useEffect } from 'react'
 import { Plus, Minus, ShoppingCart, Printer, CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils'
-import { CartItem, Product, Category } from '@/types'
-import { ProductGrid } from './product-grid'
-import { Cart } from './cart'
+import { Product, Category } from '@/types'
 import { CheckoutModal } from './checkout-modal'
 import { useCartStore } from '@/hooks/use-cart-store'
-
-// Mock data - in real app this would come from API
-const mockCategories: Category[] = [
-	{
-		id: '1',
-		name: 'Coffee',
-		description: 'Hot and cold coffee drinks',
-		color: '#8B4513',
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-	{
-		id: '2',
-		name: 'Tea',
-		description: 'Various tea selections',
-		color: '#228B22',
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-	{
-		id: '3',
-		name: 'Pastries',
-		description: 'Fresh baked goods',
-		color: '#DAA520',
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-	{
-		id: '4',
-		name: 'Sandwiches',
-		description: 'Fresh sandwiches and wraps',
-		color: '#CD853F',
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-]
-
-const mockProducts: Product[] = [
-	{
-		id: '1',
-		name: 'Espresso',
-		description: 'Rich and bold',
-		price: 2.5,
-		category_id: '1',
-		is_available: true,
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-	{
-		id: '2',
-		name: 'Cappuccino',
-		description: 'Creamy foam topping',
-		price: 3.75,
-		category_id: '1',
-		is_available: true,
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-	{
-		id: '3',
-		name: 'Latte',
-		description: 'Smooth and milky',
-		price: 4.25,
-		category_id: '1',
-		is_available: true,
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-	{
-		id: '4',
-		name: 'Americano',
-		description: 'Simple black coffee',
-		price: 3.0,
-		category_id: '1',
-		is_available: true,
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-	{
-		id: '5',
-		name: 'Green Tea',
-		description: 'Fresh green tea',
-		price: 2.25,
-		category_id: '2',
-		is_available: true,
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-	{
-		id: '6',
-		name: 'Earl Grey',
-		description: 'Classic black tea',
-		price: 2.5,
-		category_id: '2',
-		is_available: true,
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-	{
-		id: '7',
-		name: 'Croissant',
-		description: 'Buttery and flaky',
-		price: 3.5,
-		category_id: '3',
-		is_available: true,
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-	{
-		id: '8',
-		name: 'Muffin',
-		description: 'Blueberry muffin',
-		price: 2.75,
-		category_id: '3',
-		is_available: true,
-		created_at: new Date(),
-		updated_at: new Date(),
-	},
-]
+import { api } from '@/lib/api'
+import toast from 'react-hot-toast'
 
 export function POSInterface() {
-	const [selectedCategory, setSelectedCategory] = useState<string>('1')
+	const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
 	const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
-	const { items, addItem, removeItem, updateQuantity, getTotalAmount, clearCart } =
+	const [categories, setCategories] = useState<Category[]>([])
+	const [products, setProducts] = useState<Product[]>([])
+	const [loading, setLoading] = useState(true)
+	const { items, addItem, updateQuantity, getTotalAmount, clearCart } =
 		useCartStore()
 
-	const filteredProducts = mockProducts.filter(
+	// Fetch categories and products from API
+	useEffect(() => {
+		const fetchData = async () => {
+			try {
+				setLoading(true)
+
+				// Fetch categories
+				const categoriesResponse = await api.get('/categories')
+				const fetchedCategories = categoriesResponse.data
+				setCategories(fetchedCategories)
+
+				// Set first category as selected by default
+				if (fetchedCategories.length > 0) {
+					setSelectedCategory(fetchedCategories[0].id)
+				}
+
+				// Fetch products
+				const productsResponse = await api.get('/products')
+				setProducts(productsResponse.data)
+
+			} catch (error) {
+				console.error('Error fetching data:', error)
+				toast.error('Failed to load products and categories')
+			} finally {
+				setLoading(false)
+			}
+		}
+
+		fetchData()
+	}, [])
+
+	const filteredProducts = products.filter(
 		(product) =>
-			product.category_id === selectedCategory && product.is_available
+			(selectedCategory === null || product.categoryId === selectedCategory) && product.isAvailable
 	)
 
 	const handleAddToCart = (product: Product) => {
@@ -154,13 +69,31 @@ export function POSInterface() {
 		setIsCheckoutOpen(false)
 	}
 
+	if (loading) {
+		return (
+			<div className="flex h-full bg-gray-50 items-center justify-center">
+				<div className="text-center">
+					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+					<p className="text-gray-500">Loading products...</p>
+				</div>
+			</div>
+		)
+	}
+
 	return (
 		<div className="flex h-full bg-gray-50">
 			{/* Product Selection Area */}
 			<div className="flex-1 flex flex-col p-6">
 				{/* Category Tabs */}
 				<div className="flex space-x-2 mb-6">
-					{mockCategories.map((category) => (
+					<Button
+						variant={selectedCategory === null ? 'default' : 'outline'}
+						onClick={() => setSelectedCategory(null)}
+						className="px-6 py-2"
+					>
+						All
+					</Button>
+					{categories.map((category) => (
 						<Button
 							key={category.id}
 							variant={
@@ -176,33 +109,56 @@ export function POSInterface() {
 
 				{/* Product Grid */}
 				<div className="flex-1 overflow-auto">
-					<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-						{filteredProducts.map((product) => (
-							<Card
-								key={product.id}
-								className="cursor-pointer hover:shadow-md transition-shadow"
-								onClick={() => handleAddToCart(product)}
-							>
-								<CardContent className="p-4">
-									<div className="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center">
-										<span className="text-gray-400 text-2xl">📷</span>
-									</div>
-									<h3 className="font-medium text-gray-900 mb-1">
-										{product.name}
-									</h3>
-									<p className="text-sm text-gray-500 mb-2">
-										{product.description}
-									</p>
-									<div className="flex items-center justify-between">
-										<span className="text-lg font-bold text-blue-600">
-											{formatCurrency(product.price)}
-										</span>
-										<Plus className="h-5 w-5 text-gray-400" />
-									</div>
-								</CardContent>
-							</Card>
-						))}
-					</div>
+					{filteredProducts.length === 0 ? (
+						<div className="text-center py-12">
+							<p className="text-gray-500">
+								{selectedCategory !== null ? 'No products available in this category' : 'No products available'}
+							</p>
+						</div>
+					) : (
+						<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+							{filteredProducts.map((product) => (
+								<Card
+									key={product.id}
+									className="cursor-pointer hover:shadow-md transition-shadow"
+									onClick={() => handleAddToCart(product)}
+								>
+									<CardContent className="p-4">
+										<div className="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center">
+											{product.imageUrl ? (
+												<img
+													src={product.imageUrl}
+													alt={product.name}
+													className="w-full h-full object-cover rounded-lg"
+												/>
+											) : (
+												<span className="text-gray-400 text-2xl">📷</span>
+											)}
+										</div>
+										<h3 className="font-medium text-gray-900 mb-1">
+											{product.name}
+										</h3>
+										<p className="text-sm text-gray-500 mb-2">
+											{product.description}
+										</p>
+										<div className="flex items-center justify-between">
+											<span className="text-lg font-bold text-blue-600">
+												{formatCurrency(product.price)}
+											</span>
+											<div className="flex items-center space-x-2">
+												{product.stock !== undefined && (
+													<span className="text-xs text-gray-400">
+														Stock: {product.stock}
+													</span>
+												)}
+												<Plus className="h-5 w-5 text-gray-400" />
+											</div>
+										</div>
+									</CardContent>
+								</Card>
+							))}
+						</div>
+					)}
 				</div>
 			</div>
 

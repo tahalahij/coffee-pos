@@ -1,10 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/sequelize';
+import { Category } from './models/category.model';
+import { Product } from '../products/models/product.model';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Category)
+    private categoryModel: typeof Category,
+  ) {}
 
   async create(createCategoryDto: CreateCategoryDto) {
     // Validate required fields
@@ -13,7 +18,7 @@ export class CategoriesService {
     }
 
     // Check for duplicate category name
-    const existingCategory = await this.prisma.category.findUnique({
+    const existingCategory = await this.categoryModel.findOne({
       where: { name: createCategoryDto.name },
     });
 
@@ -21,38 +26,31 @@ export class CategoriesService {
       throw new ConflictException('Category name already exists');
     }
 
-    return this.prisma.category.create({
-      data: createCategoryDto,
-    });
+    return this.categoryModel.create(createCategoryDto);
   }
 
   async findAll() {
-    return this.prisma.category.findMany({
-      include: {
-        products: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            isAvailable: true,
-          },
+    return this.categoryModel.findAll({
+      include: [
+        {
+          model: Product,
+          as: 'products',
+          attributes: ['id', 'name', 'price', 'isAvailable'],
         },
-      },
-      orderBy: {
-        name: 'asc',
-      },
+      ],
+      order: [['name', 'ASC']],
     });
   }
 
-  async findOne(id: string) {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-      include: {
-        products: {
-          where: { isAvailable: true },
-          orderBy: { name: 'asc' },
+  async findOne(id: number) {
+    const category = await this.categoryModel.findByPk(id, {
+      include: [
+        {
+          model: Product,
+          as: 'products',
+          attributes: ['id', 'name', 'price', 'isAvailable', 'stock'],
         },
-      },
+      ],
     });
 
     if (!category) {
@@ -62,16 +60,17 @@ export class CategoriesService {
     return category;
   }
 
-  async update(id: string, updateCategoryDto: UpdateCategoryDto) {
-    await this.findOne(id); // Check if exists
+  async update(id: number, updateCategoryDto: UpdateCategoryDto) {
+    const category = await this.categoryModel.findByPk(id);
 
-    // Check for duplicate category name (excluding current category)
-    if (updateCategoryDto.name) {
-      const existingCategory = await this.prisma.category.findFirst({
-        where: {
-          name: updateCategoryDto.name,
-          NOT: { id },
-        },
+    if (!category) {
+      throw new NotFoundException(`Category with ID ${id} not found`);
+    }
+
+    // Check for duplicate name if name is being updated
+    if (updateCategoryDto.name && updateCategoryDto.name !== category.name) {
+      const existingCategory = await this.categoryModel.findOne({
+        where: { name: updateCategoryDto.name },
       });
 
       if (existingCategory) {
@@ -79,36 +78,41 @@ export class CategoriesService {
       }
     }
 
-    return this.prisma.category.update({
-      where: { id },
-      data: updateCategoryDto,
-    });
+    await category.update(updateCategoryDto);
+    return category;
   }
 
-  async remove(id: string) {
-    await this.findOne(id); // Check if exists
-
-    return this.prisma.category.delete({
-      where: { id },
+  async remove(id: number) {
+    const category = await this.categoryModel.findByPk(id, {
+      include: [{ model: Product, as: 'products' }],
     });
+
+    if (!category) {
+      throw new NotFoundException(`Category with ID ${id} not found`);
+    }
+
+    // Check if category has products
+    if (category.products && category.products.length > 0) {
+      throw new BadRequestException('Cannot delete category with existing products');
+    }
+
+    await category.destroy();
+    return { message: 'Category deleted successfully' };
   }
 
   async getActiveCategories() {
-    return this.prisma.category.findMany({
+    return this.categoryModel.findAll({
       where: { isActive: true },
-      include: {
-        products: {
+      include: [
+        {
+          model: Product,
+          as: 'products',
+          attributes: ['id', 'name', 'price', 'isAvailable'],
           where: { isAvailable: true },
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            description: true,
-            imageUrl: true,
-          },
+          required: false,
         },
-      },
-      orderBy: { name: 'asc' },
+      ],
+      order: [['name', 'ASC']],
     });
   }
 }

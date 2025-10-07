@@ -9,10 +9,11 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { CampaignsService } from './campaigns.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
-import { CampaignStatus } from '@prisma/client';
+import { CampaignStatus } from './models/discount-campaign.model';
 
 @Controller('campaigns')
 export class CampaignsController {
@@ -33,58 +34,60 @@ export class CampaignsController {
     @Query('customerId') customerId?: string,
     @Query('productIds') productIds?: string,
   ) {
-    const productIdArray = productIds ? productIds.split(',') : undefined;
-    return this.campaignsService.getActiveCampaigns(customerId, productIdArray);
+    const customerIdNum = customerId ? parseInt(customerId, 10) : undefined;
+    const productIdArray = productIds ? productIds.split(',').map(id => parseInt(id, 10)) : undefined;
+    return this.campaignsService.getActiveCampaigns(customerIdNum, productIdArray);
   }
 
   @Get('recommendations/:customerId')
   async getRecommendedCampaigns(@Param('customerId') customerId: string) {
-    return this.campaignsService.getRecommendedCampaigns(customerId);
+    const customerIdNum = parseInt(customerId, 10);
+    return this.campaignsService.getRecommendedCampaigns(customerIdNum);
   }
 
   @Get(':id')
-  async getCampaign(@Param('id') id: string) {
+  async getCampaign(@Param('id', ParseIntPipe) id: number) {
     return this.campaignsService.getCampaignById(id);
   }
 
   @Put(':id')
   async updateCampaign(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateCampaignDto: Partial<CreateCampaignDto>,
   ) {
     return this.campaignsService.updateCampaign(id, updateCampaignDto);
   }
 
   @Patch(':id/activate')
-  async activateCampaign(@Param('id') id: string) {
+  async activateCampaign(@Param('id', ParseIntPipe) id: number) {
     return this.campaignsService.activateCampaign(id);
   }
 
   @Patch(':id/pause')
-  async pauseCampaign(@Param('id') id: string) {
+  async pauseCampaign(@Param('id', ParseIntPipe) id: number) {
     return this.campaignsService.pauseCampaign(id);
   }
 
   @Post(':id/apply')
   @HttpCode(HttpStatus.OK)
   async applyCampaignDiscount(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() body: {
       customerId: string;
       subtotal: number;
-      productIds?: string[];
+      productIds?: number[];
     },
   ) {
+    const customerIdNum = parseInt(body.customerId, 10);
     return this.campaignsService.applyCampaignDiscount(
       id,
-      body.customerId,
+      customerIdNum,
       body.subtotal,
-      body.productIds,
     );
   }
 
   @Get(':id/analytics')
-  async getCampaignAnalytics(@Param('id') id: string) {
+  async getCampaignAnalytics(@Param('id', ParseIntPipe) id: number) {
     return this.campaignsService.getCampaignAnalytics(id);
   }
 

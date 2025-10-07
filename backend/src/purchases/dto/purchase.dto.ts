@@ -47,6 +47,16 @@ export class CreatePurchaseDto {
   @Transform(({ value }) => parseFloat(value))
   totalAmount: number;
 
+  @ApiPropertyOptional({ enum: PurchaseStatus })
+  @IsOptional()
+  @IsEnum(PurchaseStatus)
+  status?: PurchaseStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  expectedDate?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

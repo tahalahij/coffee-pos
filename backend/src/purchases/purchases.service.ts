@@ -1,12 +1,21 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreatePurchaseDto, UpdatePurchaseDto } from './dto/purchase.dto';
+import { InjectModel } from '@nestjs/sequelize';
+import { Purchase } from './models/purchase.model';
+import { PurchaseItem } from './models/purchase-item.model';
+import { Product } from '../products/models/product.model';
+import { Category } from '../categories/models/category.model';
+import { CreatePurchaseDto, UpdatePurchaseDto, PurchaseStatus } from './dto/purchase.dto';
 import { ProductsService } from '../products/products.service';
 
 @Injectable()
 export class PurchasesService {
   constructor(
-    private prisma: PrismaService,
+    @InjectModel(Purchase)
+    private purchaseModel: typeof Purchase,
+    @InjectModel(PurchaseItem)
+    private purchaseItemModel: typeof PurchaseItem,
+    @InjectModel(Product)
+    private productModel: typeof Product,
     private productsService: ProductsService,
   ) {}
 
@@ -22,93 +31,93 @@ export class PurchasesService {
 
     // Validate all products exist
     for (const item of createPurchaseDto.items) {
-      await this.productsService.findOne(item.productId);
+      await this.productsService.findOne(parseInt(item.productId));
     }
 
-    // Calculate total amount from items if not provided or validate if provided
+    // Calculate total amount from items
     const calculatedTotal = createPurchaseDto.items.reduce((sum, item) => {
       return sum + (item.unitCost * item.quantity);
     }, 0);
 
-    const totalAmount = createPurchaseDto.totalAmount || calculatedTotal;
-
-    // Validate the provided total matches calculated total (within small margin for floating point)
-    if (createPurchaseDto.totalAmount && Math.abs(createPurchaseDto.totalAmount - calculatedTotal) > 0.01) {
-      throw new BadRequestException('Total amount does not match sum of item costs');
-    }
-
     // Create purchase with items in a transaction
-    const purchase = await this.prisma.$transaction(async (prisma) => {
-      const newPurchase = await prisma.purchase.create({
-        data: {
-          supplierName: createPurchaseDto.supplierName,
-          supplierContact: createPurchaseDto.supplierContact,
-          totalAmount: totalAmount,
-          notes: createPurchaseDto.notes,
-          status: 'PENDING',
-        },
-      });
+    const purchase = await this.purchaseModel.sequelize.transaction(async (transaction) => {
+      // Create the purchase
+      const newPurchase = await this.purchaseModel.create({
+        supplierName: createPurchaseDto.supplierName,
+        supplierContact: createPurchaseDto.supplierContact,
+        totalAmount: calculatedTotal,
+        status: createPurchaseDto.status || PurchaseStatus.PENDING,
+        notes: createPurchaseDto.notes,
+      }, { transaction });
 
       // Create purchase items
       for (const item of createPurchaseDto.items) {
         const totalCost = item.unitCost * item.quantity;
 
-        await prisma.purchaseItem.create({
-          data: {
-            purchaseId: newPurchase.id,
-            productId: item.productId,
-            quantity: item.quantity,
-            unitCost: item.unitCost,
-            totalCost,
-          },
-        });
+        await this.purchaseItemModel.create({
+          purchaseId: newPurchase.id,
+          productId: parseInt(item.productId),
+          quantity: item.quantity,
+          unitCost: item.unitCost,
+          totalCost,
+        }, { transaction });
       }
 
       return newPurchase;
     });
 
+    // Return purchase with items
     return this.findOne(purchase.id);
   }
 
   async findAll() {
-    return this.prisma.purchase.findMany({
-      include: {
-        items: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                category: {
-                  select: {
-                    name: true,
-                  },
+    return this.purchaseModel.findAll({
+      include: [
+        {
+          model: PurchaseItem,
+          as: 'items',
+          include: [
+            {
+              model: Product,
+              as: 'product',
+              attributes: ['id', 'name'],
+              include: [
+                {
+                  model: Category,
+                  as: 'category',
+                  attributes: ['name'],
                 },
-              },
+              ],
             },
-          },
+          ],
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      ],
+      order: [['createdAt', 'DESC']],
     });
   }
 
-  async findOne(id: string) {
-    const purchase = await this.prisma.purchase.findUnique({
-      where: { id },
-      include: {
-        items: {
-          include: {
-            product: {
-              include: {
-                category: true,
-              },
+  async findOne(id: number) {
+    const purchase = await this.purchaseModel.findByPk(id, {
+      include: [
+        {
+          model: PurchaseItem,
+          as: 'items',
+          include: [
+            {
+              model: Product,
+              as: 'product',
+              attributes: ['id', 'name'],
+              include: [
+                {
+                  model: Category,
+                  as: 'category',
+                  attributes: ['name'],
+                },
+              ],
             },
-          },
+          ],
         },
-      },
+      ],
     });
 
     if (!purchase) {
@@ -118,142 +127,82 @@ export class PurchasesService {
     return purchase;
   }
 
-  async update(id: string, updatePurchaseDto: UpdatePurchaseDto) {
-    await this.findOne(id); // Check if exists
+  async update(id: number, updatePurchaseDto: UpdatePurchaseDto) {
+    const purchase = await this.purchaseModel.findByPk(id);
 
-    return this.prisma.purchase.update({
-      where: { id },
-      data: updatePurchaseDto,
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
+    if (!purchase) {
+      throw new NotFoundException(`Purchase with ID ${id} not found`);
+    }
+
+    await purchase.update(updatePurchaseDto);
+    return this.findOne(id);
+  }
+
+  async remove(id: number) {
+    const purchase = await this.purchaseModel.findByPk(id);
+
+    if (!purchase) {
+      throw new NotFoundException(`Purchase with ID ${id} not found`);
+    }
+
+    await purchase.destroy();
+    return { message: 'Purchase deleted successfully' };
+  }
+
+  async receive(id: number) {
+    const purchase = await this.purchaseModel.findByPk(id, {
+      include: [{ model: PurchaseItem, as: 'items' }],
     });
+
+    if (!purchase) {
+      throw new NotFoundException(`Purchase with ID ${id} not found`);
+    }
+
+    if (purchase.status !== PurchaseStatus.PENDING) {
+      throw new BadRequestException('Only pending purchases can be marked as received');
+    }
+
+    // Update purchase status and stock in transaction
+    await this.purchaseModel.sequelize.transaction(async (transaction) => {
+      // Update purchase status
+      await purchase.update({
+        status: 'RECEIVED' as any,
+        receivedAt: new Date() as any,
+      }, { transaction });
+
+      // Update product stock
+      for (const item of purchase.items) {
+        await this.productModel.increment('stock', {
+          by: item.quantity,
+          where: { id: item.productId },
+          transaction,
+        });
+      }
+    });
+
+    return this.findOne(id);
   }
 
   async markAsReceived(id: string) {
-    const purchase = await this.findOne(id);
-
-    if (purchase.status === 'RECEIVED') {
-      throw new BadRequestException('Purchase is already marked as received');
-    }
-
-    if (purchase.status === 'CANCELLED') {
-      throw new BadRequestException('Cannot receive a cancelled purchase');
-    }
-
-    // Update stock and mark as received in transaction
-    return this.prisma.$transaction(async (prisma) => {
-      // Update stock for each item
-      for (const item of purchase.items) {
-        await prisma.product.update({
-          where: { id: item.productId },
-          data: {
-            stock: {
-              increment: item.quantity,
-            },
-            cost: item.unitCost, // Update product cost with latest purchase cost
-          },
-        });
-      }
-
-      // Update purchase status
-      return prisma.purchase.update({
-        where: { id },
-        data: {
-          status: 'RECEIVED',
-          receivedAt: new Date(),
-        },
-        include: {
-          items: {
-            include: {
-              product: true,
-            },
-          },
-        },
-      });
-    });
+    return this.receive(parseInt(id));
   }
 
   async cancel(id: string, reason?: string) {
-    const purchase = await this.findOne(id);
+    const purchase = await this.purchaseModel.findByPk(parseInt(id));
 
-    if (purchase.status === 'RECEIVED') {
-      throw new BadRequestException('Cannot cancel a received purchase');
+    if (!purchase) {
+      throw new NotFoundException(`Purchase with ID ${id} not found`);
     }
 
-    if (purchase.status === 'CANCELLED') {
-      throw new BadRequestException('Purchase is already cancelled');
+    if (purchase.status !== PurchaseStatus.PENDING) {
+      throw new BadRequestException('Only pending purchases can be cancelled');
     }
 
-    return this.prisma.purchase.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        notes: reason ? `${purchase.notes || ''}\nCancellation reason: ${reason}` : purchase.notes,
-      },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
-  }
-
-  async remove(id: string) {
-    const purchase = await this.findOne(id);
-
-    if (purchase.status === 'RECEIVED') {
-      throw new BadRequestException('Cannot delete a received purchase');
-    }
-
-    return this.prisma.purchase.delete({
-      where: { id },
-    });
-  }
-
-  async getPurchasesSummary() {
-    const purchases = await this.prisma.purchase.findMany({
-      include: {
-        items: true,
-      },
+    await purchase.update({
+      status: 'CANCELLED' as any,
+      notes: reason ? `${purchase.notes || ''}\nCancellation reason: ${reason}`.trim() : purchase.notes,
     });
 
-    const summary = {
-      totalPurchases: purchases.length,
-      totalAmount: purchases.reduce((sum, purchase) => sum + Number(purchase.totalAmount), 0),
-      pendingPurchases: purchases.filter(p => p.status === 'PENDING').length,
-      receivedPurchases: purchases.filter(p => p.status === 'RECEIVED').length,
-      cancelledPurchases: purchases.filter(p => p.status === 'CANCELLED').length,
-      topSuppliers: this.getTopSuppliers(purchases),
-    };
-
-    return summary;
-  }
-
-  private getTopSuppliers(purchases: any[]) {
-    const supplierStats = new Map();
-
-    purchases.forEach(purchase => {
-      const supplier = purchase.supplierName;
-      const existing = supplierStats.get(supplier) || {
-        name: supplier,
-        totalOrders: 0,
-        totalAmount: 0,
-      };
-
-      existing.totalOrders += 1;
-      existing.totalAmount += Number(purchase.totalAmount);
-      supplierStats.set(supplier, existing);
-    });
-
-    return Array.from(supplierStats.values())
-      .sort((a, b) => b.totalAmount - a.totalAmount)
-      .slice(0, 10);
+    return this.findOne(parseInt(id));
   }
 }

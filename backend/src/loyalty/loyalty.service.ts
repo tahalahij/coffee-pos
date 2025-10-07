@@ -1,11 +1,23 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { LoyaltyTier } from '@prisma/client';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { Customer } from '../customers/models/customer.model';
+import { Sale } from '../sales/models/sale.model';
+
+// Define loyalty tier enum to replace Prisma's LoyaltyTier
+export enum LoyaltyTier {
+  BRONZE = 'BRONZE',
+  SILVER = 'SILVER',
+  GOLD = 'GOLD',
+  PLATINUM = 'PLATINUM',
+}
 
 // Simplified loyalty service that works with current schema
 @Injectable()
 export class LoyaltyService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Customer) private customerModel: typeof Customer,
+    @InjectModel(Sale) private saleModel: typeof Sale,
+  ) {}
 
   // Loyalty tier thresholds (in total spent)
   private readonly tierThresholds = {
@@ -24,9 +36,7 @@ export class LoyaltyService {
   };
 
   async getCustomerLoyaltyValue(customerId: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-    });
+    const customer = await this.customerModel.findByPk(customerId);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
@@ -34,7 +44,7 @@ export class LoyaltyService {
 
     // Use actual customer data from the database
     const loyaltyPoints = customer.loyaltyPoints;
-    const loyaltyTier = customer.loyaltyTier;
+    const loyaltyTier = customer.loyaltyTier as LoyaltyTier;
     const totalSpent = Number(customer.totalSpent);
     const visitCount = customer.visitCount;
 
@@ -49,20 +59,15 @@ export class LoyaltyService {
     }
 
     // Get recent sales for this customer
-    const recentSales = await this.prisma.sale.findMany({
+    const recentSales = await this.saleModel.findAll({
       where: { customerId },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-      select: {
-        id: true,
-        totalAmount: true,
-        loyaltyPointsEarned: true,
-        createdAt: true,
-      },
+      order: [['createdAt', 'DESC']],
+      limit: 5,
+      attributes: ['id', 'totalAmount', 'loyaltyPointsEarned', 'createdAt'],
     });
 
     // Calculate metrics
-    const totalOrders = await this.prisma.sale.count({
+    const totalOrders = await this.saleModel.count({
       where: { customerId },
     });
 
@@ -95,121 +100,268 @@ export class LoyaltyService {
   }
 
   async getLoyaltyHistory(customerId: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-    });
+    const customer = await this.customerModel.findByPk(customerId);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
 
-    // Get loyalty transactions for this customer
-    const loyaltyTransactions = await this.prisma.loyaltyTransaction.findMany({
+    // Get all sales for this customer with loyalty points
+    const salesWithPoints = await this.saleModel.findAll({
       where: { customerId },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'totalAmount', 'loyaltyPointsEarned', 'createdAt'],
     });
+
+    // Calculate tier progression
+    let runningTotal = 0;
+    const tierHistory = [];
+    let currentTier = LoyaltyTier.BRONZE;
+
+    for (const sale of salesWithPoints.reverse()) {
+      runningTotal += Number(sale.totalAmount);
+
+      // Check if tier should change
+      let newTier = currentTier;
+      if (runningTotal >= this.tierThresholds.PLATINUM) {
+        newTier = LoyaltyTier.PLATINUM;
+      } else if (runningTotal >= this.tierThresholds.GOLD) {
+        newTier = LoyaltyTier.GOLD;
+      } else if (runningTotal >= this.tierThresholds.SILVER) {
+        newTier = LoyaltyTier.SILVER;
+      }
+
+      if (newTier !== currentTier) {
+        tierHistory.push({
+          tier: newTier,
+          achievedAt: sale.createdAt,
+          totalSpentAtTime: runningTotal,
+        });
+        currentTier = newTier;
+      }
+    }
 
     return {
       customer: {
-        loyaltyPoints: customer.loyaltyPoints,
-        loyaltyTier: customer.loyaltyTier,
-        totalSpent: Number(customer.totalSpent),
+        id: customer.id,
+        name: customer.name,
+        currentTier: customer.loyaltyTier,
+        totalPoints: customer.loyaltyPoints,
+        totalSpent: customer.totalSpent,
       },
-      transactions: loyaltyTransactions,
-      tierThresholds: this.tierThresholds,
-      pointsRates: this.pointsRates,
+      tierHistory,
+      pointsHistory: salesWithPoints.reverse().map(sale => ({
+        saleId: sale.id,
+        pointsEarned: sale.loyaltyPointsEarned,
+        saleAmount: sale.totalAmount,
+        earnedAt: sale.createdAt,
+      })),
     };
   }
 
-  async addLoyaltyPoints(customerId: string, data: any) {
-    // For now, just verify customer exists
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
+  async getLoyaltyStats() {
+    // Customer distribution by tier
+    const tierDistribution = await Promise.all([
+      this.customerModel.count({ where: { loyaltyTier: LoyaltyTier.BRONZE } }),
+      this.customerModel.count({ where: { loyaltyTier: LoyaltyTier.SILVER } }),
+      this.customerModel.count({ where: { loyaltyTier: LoyaltyTier.GOLD } }),
+      this.customerModel.count({ where: { loyaltyTier: LoyaltyTier.PLATINUM } }),
+    ]);
+
+    // Average loyalty points by tier
+    const bronzeAvg = await this.customerModel.findAll({
+      where: { loyaltyTier: LoyaltyTier.BRONZE },
+      attributes: [[this.customerModel.sequelize.fn('AVG', this.customerModel.sequelize.col('loyaltyPoints')), 'avg']],
+      raw: true,
     });
+
+    const silverAvg = await this.customerModel.findAll({
+      where: { loyaltyTier: LoyaltyTier.SILVER },
+      attributes: [[this.customerModel.sequelize.fn('AVG', this.customerModel.sequelize.col('loyaltyPoints')), 'avg']],
+      raw: true,
+    });
+
+    const goldAvg = await this.customerModel.findAll({
+      where: { loyaltyTier: LoyaltyTier.GOLD },
+      attributes: [[this.customerModel.sequelize.fn('AVG', this.customerModel.sequelize.col('loyaltyPoints')), 'avg']],
+      raw: true,
+    });
+
+    const platinumAvg = await this.customerModel.findAll({
+      where: { loyaltyTier: LoyaltyTier.PLATINUM },
+      attributes: [[this.customerModel.sequelize.fn('AVG', this.customerModel.sequelize.col('loyaltyPoints')), 'avg']],
+      raw: true,
+    });
+
+    // Total points distributed
+    const totalPointsResult = await this.customerModel.findAll({
+      attributes: [[this.customerModel.sequelize.fn('SUM', this.customerModel.sequelize.col('loyaltyPoints')), 'total']],
+      raw: true,
+    });
+
+    return {
+      tierDistribution: {
+        bronze: tierDistribution[0],
+        silver: tierDistribution[1],
+        gold: tierDistribution[2],
+        platinum: tierDistribution[3],
+      },
+      avgPointsByTier: {
+        bronze: Number((bronzeAvg[0] as any)?.avg) || 0,
+        silver: Number((silverAvg[0] as any)?.avg) || 0,
+        gold: Number((goldAvg[0] as any)?.avg) || 0,
+        platinum: Number((platinumAvg[0] as any)?.avg) || 0,
+      },
+      totalPointsDistributed: Number((totalPointsResult[0] as any)?.total) || 0,
+    };
+  }
+
+  calculateLoyaltyTier(totalSpent: number): LoyaltyTier {
+    if (totalSpent >= this.tierThresholds.PLATINUM) {
+      return LoyaltyTier.PLATINUM;
+    } else if (totalSpent >= this.tierThresholds.GOLD) {
+      return LoyaltyTier.GOLD;
+    } else if (totalSpent >= this.tierThresholds.SILVER) {
+      return LoyaltyTier.SILVER;
+    }
+    return LoyaltyTier.BRONZE;
+  }
+
+  calculatePointsEarned(amount: number, tier: LoyaltyTier): number {
+    const rate = this.pointsRates[tier];
+    return Math.floor(amount * rate);
+  }
+
+  async addLoyaltyPoints(
+    customerId: string,
+    data: {
+      points: number;
+      type: string;
+      description?: string;
+      saleId?: string;
+    },
+  ) {
+    const customer = await this.customerModel.findByPk(customerId);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
 
-    // Return simulated new points total
-    return data.points;
+    // Add points to customer's loyalty balance
+    await this.customerModel.update(
+      {
+        loyaltyPoints: customer.loyaltyPoints + data.points,
+      },
+      {
+        where: { id: customerId },
+      }
+    );
+
+    return {
+      success: true,
+      message: `Added ${data.points} loyalty points`,
+      newBalance: customer.loyaltyPoints + data.points,
+    };
   }
 
   async redeemLoyaltyPoints(customerId: string, points: number) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-    });
+    const customer = await this.customerModel.findByPk(customerId);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
 
-    // Simulate insufficient points check
-    if (points > 1000) {
-      throw new Error('Insufficient loyalty points');
+    if (customer.loyaltyPoints < points) {
+      throw new BadRequestException('Insufficient loyalty points');
     }
 
-    return points;
+    // Deduct points from customer's loyalty balance
+    await this.customerModel.update(
+      {
+        loyaltyPoints: customer.loyaltyPoints - points,
+      },
+      {
+        where: { id: customerId },
+      }
+    );
+
+    return {
+      success: true,
+      message: `Redeemed ${points} loyalty points`,
+      newBalance: customer.loyaltyPoints - points,
+      redemptionValue: points * 0.01, // Assuming 1 point = $0.01
+    };
   }
 
   async awardBonusPoints(customerId: string, points: number, reason: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-    });
+    const customer = await this.customerModel.findByPk(customerId);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
 
-    // Log the reason for audit purposes (remove unused parameter warning)
-    console.log(`Awarding ${points} bonus points to customer ${customerId}: ${reason}`);
+    // Add bonus points to customer's loyalty balance
+    await this.customerModel.update(
+      {
+        loyaltyPoints: customer.loyaltyPoints + points,
+      },
+      {
+        where: { id: customerId },
+      }
+    );
 
-    return points;
+    return {
+      success: true,
+      message: `Awarded ${points} bonus points for: ${reason}`,
+      newBalance: customer.loyaltyPoints + points,
+    };
   }
 
   async updateLoyaltyTier(customerId: string, totalSpent: number) {
-    let newTier: LoyaltyTier = LoyaltyTier.BRONZE;
+    const customer = await this.customerModel.findByPk(customerId);
 
-    if (totalSpent >= this.tierThresholds.PLATINUM) {
-      newTier = LoyaltyTier.PLATINUM;
-    } else if (totalSpent >= this.tierThresholds.GOLD) {
-      newTier = LoyaltyTier.GOLD;
-    } else if (totalSpent >= this.tierThresholds.SILVER) {
-      newTier = LoyaltyTier.SILVER;
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
     }
 
-    return newTier;
-  }
+    const newTier = this.calculateLoyaltyTier(totalSpent);
 
-  async getLoyaltyStats() {
-    const totalCustomers = await this.prisma.customer.count();
+    // Update customer's tier and total spent
+    await this.customerModel.update(
+      {
+        loyaltyTier: newTier,
+        totalSpent,
+      },
+      {
+        where: { id: customerId },
+      }
+    );
 
     return {
-      tierDistribution: [
-        { loyaltyTier: 'BRONZE', _count: Math.floor(totalCustomers * 0.6), _avg: { loyaltyPoints: 50, totalSpent: 25 } },
-        { loyaltyTier: 'SILVER', _count: Math.floor(totalCustomers * 0.25), _avg: { loyaltyPoints: 150, totalSpent: 200 } },
-        { loyaltyTier: 'GOLD', _count: Math.floor(totalCustomers * 0.12), _avg: { loyaltyPoints: 300, totalSpent: 750 } },
-        { loyaltyTier: 'PLATINUM', _count: Math.floor(totalCustomers * 0.03), _avg: { loyaltyPoints: 500, totalSpent: 2000 } },
-      ],
-      totalCustomers,
-      totalPointsIssued: totalCustomers * 100,
-      totalPointsRedeemed: totalCustomers * 25,
-      redemptionRate: 25,
+      success: true,
+      message: `Updated loyalty tier to ${newTier}`,
+      previousTier: customer.loyaltyTier,
+      newTier,
+      totalSpent,
     };
   }
 
   async calculateLoyaltyPoints(customerId: string, amount: number) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-    });
+    const customer = await this.customerModel.findByPk(customerId);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
 
-    // Use BRONZE rate for now
-    const rate = this.pointsRates.BRONZE;
-    return Math.floor(amount * rate);
+    const currentTier = customer.loyaltyTier as LoyaltyTier;
+    const pointsToEarn = this.calculatePointsEarned(amount, currentTier);
+
+    return {
+      customerId,
+      amount,
+      currentTier,
+      pointsToEarn,
+      pointsRate: this.pointsRates[currentTier],
+    };
   }
 }
