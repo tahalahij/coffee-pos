@@ -35,13 +35,13 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
-    if (!formData.name.trim()) newErrors.name = 'Product name is required'
-    if (!formData.description.trim()) newErrors.description = 'Description is required'
-    if (!formData.price || parseFloat(formData.price) <= 0) newErrors.price = 'Valid price is required'
-    if (!formData.cost || parseFloat(formData.cost) < 0) newErrors.cost = 'Valid cost is required'
-    if (!formData.stock || parseInt(formData.stock) < 0) newErrors.stock = 'Valid stock quantity is required'
-    if (!formData.lowStockAlert || parseInt(formData.lowStockAlert) < 0) newErrors.lowStockAlert = 'Valid low stock alert is required'
-    if (!formData.categoryId) newErrors.categoryId = 'Category is required'
+    if (!formData.name.trim()) newErrors.name = 'نام محصول الزامی است'
+    if (!formData.description.trim()) newErrors.description = 'توضیحات الزامی است'
+    if (!formData.price || parseFloat(formData.price) <= 0) newErrors.price = 'قیمت معتبر الزامی است'
+    if (!formData.cost || parseFloat(formData.cost) < 0) newErrors.cost = 'هزینه معتبر الزامی است'
+    if (!formData.stock || parseInt(formData.stock) < 0) newErrors.stock = 'تعداد موجودی معتبر الزامی است'
+    if (!formData.lowStockAlert || parseInt(formData.lowStockAlert) < 0) newErrors.lowStockAlert = 'هشدار موجودی کم معتبر الزامی است'
+    if (!formData.categoryId) newErrors.categoryId = 'دسته‌بندی الزامی است'
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -97,7 +97,7 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Add New Product</h2>
+          <h2 className="text-xl font-semibold">افزودن محصول جدید</h2>
           <Button variant="ghost" onClick={onClose} className="p-1">
             <X className="h-5 w-5" />
           </Button>
@@ -105,22 +105,22 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Product Name</label>
+            <label className="block text-sm font-medium mb-1">نام محصول</label>
             <Input
               value={formData.name}
               onChange={(e) => handleInputChange('name', e.target.value)}
-              placeholder="Enter product name"
+              placeholder="نام محصول را وارد کنید"
               className={errors.name ? 'border-red-500' : ''}
             />
             {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Description</label>
+            <label className="block text-sm font-medium mb-1">توضیحات</label>
             <Input
               value={formData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
-              placeholder="Enter product description"
+              placeholder="توضیحات محصول را وارد کنید"
               className={errors.description ? 'border-red-500' : ''}
             />
             {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
@@ -128,7 +128,7 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Price ($)</label>
+              <label className="block text-sm font-medium mb-1">قیمت (تومان)</label>
               <Input
                 type="number"
                 step="0.01"
@@ -141,7 +141,7 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Cost ($)</label>
+              <label className="block text-sm font-medium mb-1">هزینه (تومان)</label>
               <Input
                 type="number"
                 step="0.01"
@@ -156,7 +156,7 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Stock Quantity</label>
+              <label className="block text-sm font-medium mb-1">تعداد موجودی</label>
               <Input
                 type="number"
                 value={formData.stock}
@@ -168,7 +168,7 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Low Stock Alert</label>
+              <label className="block text-sm font-medium mb-1">هشدار موجودی کم</label>
               <Input
                 type="number"
                 value={formData.lowStockAlert}
@@ -181,13 +181,13 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Category</label>
+            <label className="block text-sm font-medium mb-1">دسته‌بندی</label>
             <select
               value={formData.categoryId}
               onChange={(e) => handleInputChange('categoryId', e.target.value)}
               className={`w-full p-2 border rounded-md ${errors.categoryId ? 'border-red-500' : 'border-gray-300'}`}
             >
-              <option value="">Select a category</option>
+              <option value="">دسته‌بندی را انتخاب کنید</option>
               {categories.filter(c => c.isActive).map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -206,16 +206,16 @@ export function AddProductModal({ isOpen, onClose, onAdd, categories }: AddProdu
               className="rounded"
             />
             <label htmlFor="isAvailable" className="text-sm font-medium">
-              Available for sale
+              برای فروش در دسترس است
             </label>
           </div>
 
           <div className="flex space-x-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
-              Cancel
+              لغو
             </Button>
             <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? 'Adding...' : 'Add Product'}
+              {loading ? 'در حال افزودن...' : 'افزودن محصول'}
             </Button>
           </div>
         </form>

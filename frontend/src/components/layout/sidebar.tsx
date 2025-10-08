@@ -17,14 +17,14 @@ import { Button } from '@/components/ui/button'
 import { TabType } from '@/app/page'
 
 const navigation = [
-  { name: 'POS', key: 'pos' as TabType, icon: ShoppingCart },
-  { name: 'Dashboard', key: 'dashboard' as TabType, icon: LayoutDashboard },
-  { name: 'Products', key: 'products' as TabType, icon: Package },
-  { name: 'Categories', key: 'categories' as TabType, icon: Archive },
-  { name: 'Sales', key: 'sales' as TabType, icon: Receipt },
-  { name: 'Purchases', key: 'purchases' as TabType, icon: Users },
-  { name: 'Analytics', key: 'analytics' as TabType, icon: BarChart3 },
-  { name: 'Settings', key: 'settings' as TabType, icon: Settings },
+  { name: 'صندوق فروش', key: 'pos' as TabType, icon: ShoppingCart },
+  { name: 'داشبورد', key: 'dashboard' as TabType, icon: LayoutDashboard },
+  { name: 'محصولات', key: 'products' as TabType, icon: Package },
+  { name: 'دسته‌بندی', key: 'categories' as TabType, icon: Archive },
+  { name: 'فروش', key: 'sales' as TabType, icon: Receipt },
+  { name: 'خرید', key: 'purchases' as TabType, icon: Users },
+  { name: 'تحلیل', key: 'analytics' as TabType, icon: BarChart3 },
+  { name: 'تنظیمات', key: 'settings' as TabType, icon: Settings },
 ]
 
 interface SidebarProps {
@@ -44,7 +44,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       <div className="flex items-center h-16 px-6 border-b border-gray-200">
         <Coffee className="h-8 w-8 text-blue-600" />
         {!collapsed && (
-          <span className="ml-2 text-xl font-bold text-gray-900">Cafe POS</span>
+          <span className="mr-3 text-xl font-bold text-gray-900">کافه POS</span>
         )}
       </div>
 
@@ -59,13 +59,13 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
               key={item.key}
               variant={isActive ? "default" : "ghost"}
               className={cn(
-                "w-full justify-start",
+                "w-full justify-start gap-3",
                 collapsed ? "px-2" : "px-4"
               )}
               onClick={() => onTabChange(item.key)}
             >
-              <Icon className={cn("h-5 w-5", !collapsed && "mr-3")} />
-              {!collapsed && item.name}
+              <Icon className="h-5 w-5 flex-shrink-0" />
+              {!collapsed && <span>{item.name}</span>}
             </Button>
           )
         })}

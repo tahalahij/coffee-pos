@@ -35,7 +35,7 @@ export default function DashboardContent() {
     return (
       <div className="p-6 space-y-6 h-full overflow-y-auto">
         <div className="flex items-center justify-center h-64">
-          <div className="text-lg text-gray-500">Loading dashboard...</div>
+          <div className="text-lg text-gray-500">در حال بارگذاری داشبورد...</div>
         </div>
       </div>
     )
@@ -68,8 +68,8 @@ export default function DashboardContent() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500">Welcome back! Here's what's happening today.</p>
+          <h1 className="text-3xl font-bold text-gray-900">داشبورد</h1>
+          <p className="text-gray-500">خوش آمدید! در اینجا وضعیت امروز را مشاهده کنید.</p>
         </div>
         <div className="flex items-center space-x-2 text-sm text-gray-500">
           <Calendar className="h-4 w-4" />
@@ -81,35 +81,35 @@ export default function DashboardContent() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate pr-2">Today's Sales</CardTitle>
+            <CardTitle className="text-sm font-medium truncate pr-2">فروش امروز</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent className="pt-0">
             <div className="text-xl md:text-2xl font-bold truncate" title={formatCurrency(stats.todaySales)}>
               {formatCurrency(stats.todaySales)}
             </div>
-            <p className="text-xs text-muted-foreground truncate">
-              Revenue for today
+                        <p className="text-xs text-muted-foreground truncate">
+              درآمد امروز
             </p>
           </CardContent>
         </Card>
 
         <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate pr-2">Today's Orders</CardTitle>
+            <CardTitle className="text-sm font-medium truncate pr-2">سفارشات امروز</CardTitle>
             <ShoppingBag className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent className="pt-0">
             <div className="text-xl md:text-2xl font-bold">{stats.todayOrders}</div>
             <p className="text-xs text-muted-foreground truncate">
-              Orders completed today
+              سفارشات تکمیل شده امروز
             </p>
           </CardContent>
         </Card>
 
         <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate pr-2">Average Order</CardTitle>
+            <CardTitle className="text-sm font-medium truncate pr-2">میانگین سفارش</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent className="pt-0">
@@ -117,20 +117,20 @@ export default function DashboardContent() {
               {formatCurrency(averageOrderValue)}
             </div>
             <p className="text-xs text-muted-foreground truncate">
-              Per order today
+              به ازای هر سفارش امروز
             </p>
           </CardContent>
         </Card>
 
         <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate pr-2">Low Stock Items</CardTitle>
+            <CardTitle className="text-sm font-medium truncate pr-2">کالاهای کمبود</CardTitle>
             <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
           </CardHeader>
           <CardContent className="pt-0">
             <div className="text-xl md:text-2xl font-bold text-red-600">{stats.lowStockProducts}</div>
             <p className="text-xs text-red-500 truncate">
-              Items need restocking
+              نیاز به تامین مجدد
             </p>
           </CardContent>
         </Card>
@@ -140,27 +140,27 @@ export default function DashboardContent() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base lg:text-lg">Monthly Performance</CardTitle>
+            <CardTitle className="text-base lg:text-lg">عملکرد ماهانه</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 pt-0">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm text-gray-500 truncate">Total Sales</span>
-              <span className="font-semibold text-sm lg:text-base whitespace-nowrap" title={formatCurrency(stats.monthSales)}>
-                {formatCurrency(stats.monthSales)}
-              </span>
+                        <div className="flex items-center justify-between gap-4">
+              <span className="text-sm text-gray-500 truncate">فروش ماهانه</span>
+                                      <span className="font-semibold text-sm lg:text-base whitespace-nowrap numbers-ltr" title={formatCurrency(stats.todaySales)}>
+                          {formatCurrency(stats.todaySales)}
+                        </span>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <span className="text-sm text-gray-500 truncate">Total Orders</span>
+              <span className="text-sm text-gray-500 truncate">سفارشات ماه</span>
               <span className="font-semibold text-sm lg:text-base whitespace-nowrap">{stats.monthOrders}</span>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <span className="text-sm text-gray-500 truncate">Average Order Value</span>
+              <span className="text-sm text-gray-500 truncate">میانگین سفارش</span>
               <span className="font-semibold text-sm lg:text-base whitespace-nowrap" title={formatCurrency(stats.monthOrders > 0 ? stats.monthSales / stats.monthOrders : 0)}>
                 {formatCurrency(stats.monthOrders > 0 ? stats.monthSales / stats.monthOrders : 0)}
               </span>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <span className="text-sm text-gray-500 truncate">Total Products</span>
+              <span className="text-sm text-gray-500 truncate">کل محصولات</span>
               <span className="font-semibold text-sm lg:text-base whitespace-nowrap">{stats.totalProducts}</span>
             </div>
           </CardContent>
@@ -168,7 +168,7 @@ export default function DashboardContent() {
 
         <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base lg:text-lg">Recent Sales</CardTitle>
+            <CardTitle className="text-base lg:text-lg">فروش‌های اخیر</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             {stats.recentSales.length > 0 ? (
@@ -190,7 +190,7 @@ export default function DashboardContent() {
             ) : (
               <div className="text-center py-8">
                 <ShoppingBag className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">No recent sales</p>
+                <p className="text-sm text-gray-500">فروش اخیری وجود ندارد</p>
               </div>
             )}
           </CardContent>
@@ -200,25 +200,25 @@ export default function DashboardContent() {
       {/* Quick Actions */}
       <Card className="overflow-hidden">
         <CardHeader>
-          <CardTitle className="text-base lg:text-lg">Quick Actions</CardTitle>
+          <CardTitle className="text-base lg:text-lg">دسترسی سریع</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
             <div className="flex flex-col items-center p-3 lg:p-4 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors min-h-0">
               <ShoppingBag className="h-6 w-6 lg:h-8 lg:w-8 text-blue-600 mb-2 flex-shrink-0" />
-              <span className="text-xs lg:text-sm font-medium text-blue-900 text-center leading-tight">New Sale</span>
+              <span className="text-xs lg:text-sm font-medium text-blue-900 text-center leading-tight">فروش جدید</span>
             </div>
             <div className="flex flex-col items-center p-3 lg:p-4 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors min-h-0">
               <Package className="h-6 w-6 lg:h-8 lg:w-8 text-green-600 mb-2 flex-shrink-0" />
-              <span className="text-xs lg:text-sm font-medium text-green-900 text-center leading-tight">Add Product</span>
+              <span className="text-xs lg:text-sm font-medium text-green-900 text-center leading-tight">افزودن محصول</span>
             </div>
             <div className="flex flex-col items-center p-3 lg:p-4 bg-purple-50 rounded-lg cursor-pointer hover:bg-purple-100 transition-colors min-h-0">
               <Users className="h-6 w-6 lg:h-8 lg:w-8 text-purple-600 mb-2 flex-shrink-0" />
-              <span className="text-xs lg:text-sm font-medium text-purple-900 text-center leading-tight">Add Customer</span>
+              <span className="text-xs lg:text-sm font-medium text-purple-900 text-center leading-tight">افزودن مشتری</span>
             </div>
             <div className="flex flex-col items-center p-3 lg:p-4 bg-orange-50 rounded-lg cursor-pointer hover:bg-orange-100 transition-colors min-h-0">
               <TrendingUp className="h-6 w-6 lg:h-8 lg:w-8 text-orange-600 mb-2 flex-shrink-0" />
-              <span className="text-xs lg:text-sm font-medium text-orange-900 text-center leading-tight">View Reports</span>
+              <span className="text-xs lg:text-sm font-medium text-orange-900 text-center leading-tight">مشاهده گزارش</span>
             </div>
           </div>
         </CardContent>
@@ -230,13 +230,12 @@ export default function DashboardContent() {
           <CardHeader>
             <CardTitle className="text-red-800 flex items-center space-x-2">
               <AlertTriangle className="h-5 w-5" />
-              <span>Stock Alert</span>
+              <span>هشدار موجودی</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-red-700 text-sm">
-              You have {stats.lowStockProducts} product{stats.lowStockProducts !== 1 ? 's' : ''} running low on stock.
-              Consider restocking to avoid running out.
+                        <p className="text-red-700 text-sm">
+              شما {stats.lowStockProducts} محصول دارید که نیاز به تامین مجدد دارند. موجودی خود را بررسی کنید تا از اتمام کالاهای محبوب جلوگیری کنید.
             </p>
           </CardContent>
         </Card>

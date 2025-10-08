@@ -11,7 +11,7 @@ export class CreateCustomerDto {
   @IsString()
   @IsNotEmpty()
   @Matches(/^\+?\d{10,15}$/, {
-    message: 'Phone number must be between 10-15 digits and may start with +'
+    message: 'شماره تلفن باید بین ۱۰ تا ۱۵ رقم باشد و ممکن است با + شروع شود'
   })
   phone: string;
 
@@ -43,7 +43,7 @@ export class UpdateCustomerDto {
   @IsString()
   @IsNotEmpty()
   @Matches(/^\+?\d{10,15}$/, {
-    message: 'Phone number must be between 10-15 digits and may start with +'
+    message: 'شماره تلفن باید بین ۱۰ تا ۱۵ رقم باشد و ممکن است با + شروع شود'
   })
   phone?: string;
 

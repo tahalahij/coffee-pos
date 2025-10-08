@@ -52,9 +52,9 @@ export default function PurchasesContent() {
           <h1 className="text-3xl font-bold text-gray-900">Purchases</h1>
           <p className="text-gray-500">Manage inventory procurement</p>
         </div>
-        <Button onClick={() => setIsAddModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Purchase Order
+                <Button onClick={() => setIsAddModalOpen(true)} className="flex items-center space-x-2">
+          <Plus className="h-4 w-4 ml-2" />
+          <span>Add Purchase</span>
         </Button>
       </div>
 

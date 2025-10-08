@@ -27,7 +27,7 @@ export class AnalyticsService {
         status: 'COMPLETED',
       },
       attributes: [
-        [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('totalAmount')), 'totalAmount'],
+        [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalAmount'],
         [this.saleModel.sequelize.fn('COUNT', '*'), 'count'],
       ],
       raw: true,
@@ -40,7 +40,7 @@ export class AnalyticsService {
         status: 'COMPLETED',
       },
       attributes: [
-        [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('totalAmount')), 'totalAmount'],
+        [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalAmount'],
         [this.saleModel.sequelize.fn('COUNT', '*'), 'count'],
       ],
       raw: true,
@@ -56,29 +56,30 @@ export class AnalyticsService {
         [Op.and]: this.productModel.sequelize.where(
           this.productModel.sequelize.col('stock'),
           Op.lte,
-          this.productModel.sequelize.col('lowStockAlert')
+          this.productModel.sequelize.col('low_stock_alert')
         ),
       },
     });
 
-    // Recent sales
+    // Recent sales - handle empty results
     const recentSales = await this.saleModel.findAll({
       limit: 10,
       order: [['createdAt', 'DESC']],
       attributes: ['id', 'receiptNumber', 'totalAmount', 'createdAt'],
     });
 
-    const todaysData = todaysSalesResult[0] as any;
-    const monthData = monthSalesResult[0] as any;
+    // Handle null/undefined aggregation results when no sales exist
+    const todaysData = (todaysSalesResult && todaysSalesResult.length > 0) ? todaysSalesResult[0] as any : {};
+    const monthData = (monthSalesResult && monthSalesResult.length > 0) ? monthSalesResult[0] as any : {};
 
     return {
       todaySales: Number(todaysData?.totalAmount) || 0,
       todayOrders: Number(todaysData?.count) || 0,
       monthSales: Number(monthData?.totalAmount) || 0,
       monthOrders: Number(monthData?.count) || 0,
-      totalProducts,
-      lowStockProducts,
-      recentSales,
+      totalProducts: totalProducts || 0,
+      lowStockProducts: lowStockProducts || 0,
+      recentSales: recentSales || [],
     };
   }
 
@@ -108,8 +109,12 @@ export class AnalyticsService {
       attributes: ['totalAmount', 'createdAt'],
     });
 
-    const totalSales = sales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
-    const totalOrders = sales.length;
+    // Handle empty sales array
+    const safeSales = sales || [];
+    const totalSales = safeSales.length > 0 
+      ? safeSales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0)
+      : 0;
+    const totalOrders = safeSales.length;
 
     // Create breakdown based on period
     let breakdown = [];
@@ -119,13 +124,15 @@ export class AnalyticsService {
         const hourStart = new Date(startDate.getTime() + hour * 60 * 60 * 1000);
         const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
 
-        const hourlySales = sales.filter(
+        const hourlySales = safeSales.filter(
           sale => sale.createdAt >= hourStart && sale.createdAt < hourEnd
         );
 
         breakdown.push({
           period: hour,
-          sales: hourlySales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0),
+          sales: hourlySales.length > 0 
+            ? hourlySales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0)
+            : 0,
           orders: hourlySales.length,
         });
       }
@@ -136,13 +143,15 @@ export class AnalyticsService {
         const dayStart = new Date(startDate.getTime() + day * 24 * 60 * 60 * 1000);
         const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
-        const dailySales = sales.filter(
+        const dailySales = safeSales.filter(
           sale => sale.createdAt >= dayStart && sale.createdAt < dayEnd
         );
 
         breakdown.push({
           date: dayStart.toISOString().split('T')[0],
-          sales: dailySales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0),
+          sales: dailySales.length > 0 
+            ? dailySales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0)
+            : 0,
           orders: dailySales.length,
         });
       }
@@ -160,13 +169,18 @@ export class AnalyticsService {
       attributes: [
         'productId',
         [this.saleItemModel.sequelize.fn('SUM', this.saleItemModel.sequelize.col('quantity')), 'totalQuantity'],
-        [this.saleItemModel.sequelize.fn('SUM', this.saleItemModel.sequelize.col('totalAmount')), 'totalRevenue'],
+        [this.saleItemModel.sequelize.fn('SUM', this.saleItemModel.sequelize.col('total_amount')), 'totalRevenue'],
       ],
       group: ['productId'],
       order: [[this.saleItemModel.sequelize.col('totalQuantity'), 'DESC']],
       limit,
       raw: true,
     });
+
+    // Handle case where no sale items exist
+    if (!topProducts || topProducts.length === 0) {
+      return [];
+    }
 
     return await Promise.all(
       topProducts.map(async (item: any) => {
@@ -177,9 +191,9 @@ export class AnalyticsService {
         });
 
         return {
-          product,
-          totalQuantity: Number(item.totalQuantity),
-          totalRevenue: Number(item.totalRevenue),
+          product: product || { name: 'Unknown Product', price: 0 },
+          totalQuantity: Number(item.totalQuantity) || 0,
+          totalRevenue: Number(item.totalRevenue) || 0,
         };
       })
     );
@@ -190,7 +204,7 @@ export class AnalyticsService {
       where: { customerId: { [Op.ne]: null } },
       attributes: [
         'customerId',
-        [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('totalAmount')), 'totalSpent'],
+        [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalSpent'],
         [this.saleModel.sequelize.fn('COUNT', '*'), 'totalOrders'],
       ],
       group: ['customerId'],
@@ -198,6 +212,11 @@ export class AnalyticsService {
       limit,
       raw: true,
     });
+
+    // Handle case where no customer sales exist
+    if (!topCustomers || topCustomers.length === 0) {
+      return [];
+    }
 
     return await Promise.all(
       topCustomers.map(async (item: any) => {
@@ -208,9 +227,9 @@ export class AnalyticsService {
         });
 
         return {
-          customer,
-          totalSpent: Number(item.totalSpent),
-          totalOrders: Number(item.totalOrders),
+          customer: customer || { name: 'Unknown Customer', phone: null },
+          totalSpent: Number(item.totalSpent) || 0,
+          totalOrders: Number(item.totalOrders) || 0,
         };
       })
     );
@@ -232,14 +251,14 @@ export class AnalyticsService {
           status: 'COMPLETED',
         },
         attributes: [
-          [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('totalAmount')), 'totalAmount'],
+          [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalAmount'],
         ],
         raw: true,
       });
 
       dailyTrends.push({
         date: startOfDay.toISOString().split('T')[0],
-        revenue: Number(dailySales[0]?.totalAmount) || 0,
+        revenue: (dailySales && dailySales.length > 0) ? (Number(dailySales[0]?.totalAmount) || 0) : 0,
       });
     }
 
@@ -255,14 +274,14 @@ export class AnalyticsService {
           status: 'COMPLETED',
         },
         attributes: [
-          [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('totalAmount')), 'totalAmount'],
+          [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalAmount'],
         ],
         raw: true,
       });
 
       weeklyTrends.push({
         week: `Week of ${weekStart.toISOString().split('T')[0]}`,
-        revenue: Number(weeklySales[0]?.totalAmount) || 0,
+        revenue: (weeklySales && weeklySales.length > 0) ? (Number(weeklySales[0]?.totalAmount) || 0) : 0,
       });
     }
 
@@ -278,14 +297,14 @@ export class AnalyticsService {
           status: 'COMPLETED',
         },
         attributes: [
-          [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('totalAmount')), 'totalAmount'],
+          [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalAmount'],
         ],
         raw: true,
       });
 
       monthlyTrends.push({
         month: monthStart.toISOString().substring(0, 7),
-        revenue: Number(monthlySales[0]?.totalAmount) || 0,
+        revenue: (monthlySales && monthlySales.length > 0) ? (Number(monthlySales[0]?.totalAmount) || 0) : 0,
       });
     }
 

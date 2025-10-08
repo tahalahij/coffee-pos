@@ -71,7 +71,7 @@ export default function AnalyticsContent() {
           <p className="text-gray-500">Business insights and performance metrics</p>
         </div>
         <Button variant="outline" onClick={handleExportReport}>
-          <Download className="h-4 w-4 mr-2" />
+          <Download className="h-4 w-4 ml-2" />
           Export Report
         </Button>
       </div>

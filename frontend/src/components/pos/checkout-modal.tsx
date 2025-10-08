@@ -62,11 +62,11 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
       const { fetchSales } = useSalesStore.getState()
       fetchSales()
 
-      toast.success(`Payment successful! Receipt: ${createdSale.receiptNumber}`)
+      toast.success(`پرداخت موفق! شماره رسید: ${createdSale.receiptNumber}`)
       onComplete()
     } catch (error: any) {
       console.error('Payment processing error:', error)
-      const errorMessage = error.response?.data?.message || 'Payment failed. Please try again.'
+      const errorMessage = error.response?.data?.message || 'پرداخت ناموفق. لطفا دوباره تلاش کنید.'
       toast.error(errorMessage)
     } finally {
       setIsProcessing(false)
@@ -87,11 +87,11 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
         setCustomerName(res.data[0].name)
       } else {
         setCustomer(null)
-        setCustomerError('No customer found. Please enter name to add.')
+        setCustomerError('مشتری یافت نشد. لطفا نام را برای افزودن وارد کنید.')
       }
     } catch (e) {
       console.log("Error searching customer", e)
-      setCustomerError('Error searching customer')
+      setCustomerError('خطا در جستجوی مشتری')
     }
     setCustomerSearchLoading(false)
   }
@@ -102,7 +102,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
       const res = await api.post('/customers', { name: customerName, phone: customerPhone })
       setCustomer(res.data)
     } catch (e) {
-      setCustomerError('Error adding customer')
+      setCustomerError('خطا در افزودن مشتری')
     }
   }
 
@@ -110,7 +110,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold">Checkout</h2>
+          <h2 className="text-xl font-bold">صورتحساب</h2>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -119,7 +119,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
         <div className="p-6 space-y-6">
           {/* Customer Search/Add */}
           <div>
-            <label className="block text-sm font-medium mb-2">Customer Phone</label>
+            <label className="block text-sm font-medium mb-2">شماره تلفن مشتری</label>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
@@ -129,11 +129,11 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
                 placeholder="09123456789"
               />
               <Button type="button" onClick={handleCustomerSearch} disabled={customerSearchLoading}>
-                {customerSearchLoading ? 'Searching...' : 'Search'}
+                {customerSearchLoading ? 'در حال جستجو...' : 'جستجو'}
               </Button>
             </div>
             {customer ? (
-              <div className="mb-2 text-green-700">Customer: {customer.name}</div>
+              <div className="mb-2 text-green-700">مشتری: {customer.name}</div>
             ) : customerError ? (
               <div className="mb-2 text-red-600">{customerError}</div>
             ) : null}
@@ -144,10 +144,10 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
                   value={customerName}
                   onChange={e => setCustomerName(e.target.value)}
                   className="border px-2 py-1 rounded w-full"
-                  placeholder="Enter customer name"
+                  placeholder="نام مشتری را وارد کنید"
                 />
                 <Button type="button" onClick={handleAddCustomer} disabled={!customerName}>
-                  Add
+                  افزودن
                 </Button>
               </div>
             )}
@@ -155,7 +155,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
 
           {/* Order Summary */}
           <div>
-            <h3 className="font-medium mb-3">Order Summary</h3>
+            <h3 className="font-medium mb-3">خلاصه سفارش</h3>
             <div className="space-y-2 text-sm">
               {items.map((item) => (
                 <div key={item.id} className="flex justify-between">
@@ -164,7 +164,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
                 </div>
               ))}
               <div className="border-t pt-2 font-medium flex justify-between">
-                <span>Total:</span>
+                <span>مجموع:</span>
                 <span>{formatCurrency(total)}</span>
               </div>
             </div>
@@ -172,7 +172,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
 
           {/* Payment Method */}
           <div>
-            <h3 className="font-medium mb-3">Payment Method</h3>
+            <h3 className="font-medium mb-3">روش پرداخت</h3>
             <div className="grid grid-cols-3 gap-2">
               <Button
                 variant={paymentMethod === 'CASH' ? 'default' : 'outline'}
@@ -180,7 +180,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
                 className="flex flex-col items-center p-4 h-auto"
               >
                 <Banknote className="h-6 w-6 mb-1" />
-                <span className="text-xs">Cash</span>
+                <span className="text-xs">نقدی</span>
               </Button>
               <Button
                 variant={paymentMethod === 'CARD' ? 'default' : 'outline'}
@@ -188,7 +188,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
                 className="flex flex-col items-center p-4 h-auto"
               >
                 <CreditCard className="h-6 w-6 mb-1" />
-                <span className="text-xs">Card</span>
+                <span className="text-xs">کارت</span>
               </Button>
               <Button
                 variant={paymentMethod === 'DIGITAL' ? 'default' : 'outline'}
@@ -196,7 +196,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
                 className="flex flex-col items-center p-4 h-auto"
               >
                 <Smartphone className="h-6 w-6 mb-1" />
-                <span className="text-xs">Digital</span>
+                <span className="text-xs">دیجیتال</span>
               </Button>
             </div>
           </div>
@@ -204,7 +204,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
           {/* Cash Payment Details */}
           {paymentMethod === 'CASH' && (
             <div>
-              <label className="block text-sm font-medium mb-2">Cash Received</label>
+              <label className="block text-sm font-medium mb-2">مبلغ دریافتی</label>
               <input
                 type="number"
                 value={cashReceived || ''}
@@ -216,15 +216,15 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
               {cashReceived > 0 && (
                 <div className="mt-2 p-3 bg-gray-50 rounded-md">
                   <div className="flex justify-between text-sm">
-                    <span>Total:</span>
+                    <span>مجموع:</span>
                     <span>{formatCurrency(total)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>Received:</span>
+                    <span>دریافتی:</span>
                     <span>{formatCurrency(cashReceived)}</span>
                   </div>
                   <div className="flex justify-between font-medium border-t pt-1 mt-1">
-                    <span>Change:</span>
+                    <span>باقیمانده:</span>
                     <span className={change >= 0 ? 'text-green-600' : 'text-red-600'}>
                       {formatCurrency(change)}
                     </span>
@@ -242,16 +242,16 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
             className="w-full"
             size="lg"
           >
-            {isProcessing ? 'Processing...' : `Process Payment (${formatCurrency(total)})`}
+            {isProcessing ? 'در حال پردازش...' : `انجام پرداخت (${formatCurrency(total)})`}
           </Button>
 
           <div className="flex space-x-2">
             <Button variant="outline" onClick={onClose} className="flex-1">
-              Cancel
+              لغو
             </Button>
-            <Button variant="outline" className="flex-1">
-              <Printer className="h-4 w-4 mr-2" />
-              Print
+                        <Button variant="outline" className="flex-1">
+              <Printer className="h-4 w-4 ml-2" />
+              چاپ رسید
             </Button>
           </div>
         </div>

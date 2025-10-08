@@ -3,66 +3,66 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 
 export class CreateProductDto {
-  @ApiProperty()
-  @IsString()
+  @ApiProperty({ description: 'نام محصول' })
+  @IsString({ message: 'نام محصول باید رشته باشد' })
   name: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'توضیحات محصول' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'توضیحات محصول باید رشته باشد' })
   description?: string;
 
-  @ApiProperty()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
+  @ApiProperty({ description: 'قیمت محصول' })
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'قیمت باید عدد معتبر باشد' })
+  @Min(0, { message: 'قیمت نباید منفی باشد' })
   @Transform(({ value }) => parseFloat(value))
   price: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'هزینه محصول' })
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'هزینه باید عدد معتبر باشد' })
+  @Min(0, { message: 'هزینه نباید منفی باشد' })
   @Transform(({ value }) => parseFloat(value))
   cost?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'کد SKU محصول' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'کد SKU باید رشته باشد' })
   sku?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'آدرس تصویر محصول' })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'آدرس تصویر باید رشته باشد' })
   imageUrl?: string;
 
-  @ApiProperty()
-  @IsInt()
+  @ApiProperty({ description: 'شناسه دسته‌بندی' })
+  @IsInt({ message: 'شناسه دسته‌بندی باید عدد صحیح باشد' })
   @Type(() => Number)
   categoryId: number;
 
-  @ApiPropertyOptional({ default: true })
+  @ApiPropertyOptional({ default: true, description: 'وضعیت در دسترس بودن' })
   @IsOptional()
-  @IsBoolean()
+  @IsBoolean({ message: 'وضعیت در دسترس بودن باید بولین باشد' })
   isAvailable?: boolean;
 
-  @ApiPropertyOptional({ default: 0 })
+  @ApiPropertyOptional({ default: 0, description: 'تعداد موجودی' })
   @IsOptional()
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'موجودی باید عدد صحیح باشد' })
+  @Min(0, { message: 'موجودی نباید منفی باشد' })
   @Type(() => Number)
   stock?: number;
 
-  @ApiPropertyOptional({ default: 0 })
+  @ApiPropertyOptional({ default: 0, description: 'حداقل سطح موجودی' })
   @IsOptional()
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'حداقل سطح موجودی باید عدد صحیح باشد' })
+  @Min(0, { message: 'حداقل سطح موجودی نباید منفی باشد' })
   @Type(() => Number)
   minStockLevel?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'آستانه هشدار موجودی کم' })
   @IsOptional()
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'آستانه هشدار باید عدد صحیح باشد' })
+  @Min(0, { message: 'آستانه هشدار نباید منفی باشد' })
   @Type(() => Number)
   lowStockAlert?: number;
 }

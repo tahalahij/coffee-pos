@@ -259,22 +259,25 @@ export class SalesService {
       ],
     });
 
-    const totalSales = sales.reduce((sum, sale) => sum + parseFloat(sale.totalAmount.toString()), 0);
-    const totalOrders = sales.length;
+    // Handle case when no sales exist
+    const totalSales = sales && sales.length > 0 
+      ? sales.reduce((sum, sale) => sum + parseFloat(sale.totalAmount?.toString() || '0'), 0)
+      : 0;
+    const totalOrders = sales ? sales.length : 0;
 
     return {
       date: targetDate,
       totalSales,
       totalOrders,
       averageOrderValue: totalOrders > 0 ? totalSales / totalOrders : 0,
-      sales: sales.map(sale => ({
+      sales: sales ? sales.map(sale => ({
         id: sale.id,
         receiptNumber: sale.receiptNumber,
-        totalAmount: sale.totalAmount,
+        totalAmount: sale.totalAmount || 0,
         paymentMethod: sale.paymentMethod,
         createdAt: sale.createdAt,
-        itemCount: sale.items.length,
-      })),
+        itemCount: sale.items ? sale.items.length : 0,
+      })) : [],
     };
   }
 

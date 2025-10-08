@@ -65,9 +65,9 @@ export default function SalesContent() {
           <h1 className="text-3xl font-bold text-gray-900">Sales History</h1>
           <p className="text-gray-500">View and manage all transactions ({sales.length} total)</p>
         </div>
-        <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+                <Button onClick={fetchSales} disabled={loading} className="flex items-center space-x-2">
+          <RefreshCw className={`h-4 w-4 ml-2 ${loading ? 'animate-spin' : ''}`} />
+          <span>{loading ? 'Loading...' : 'Refresh Sales'}</span>
         </Button>
       </div>
 

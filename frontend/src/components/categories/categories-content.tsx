@@ -31,11 +31,11 @@ export default function CategoriesContent() {
   const handleDeleteCategory = async (categoryId: string) => {
     const category = categories.find(c => c.id === categoryId)
     if (category && category.productCount && category.productCount > 0) {
-      alert('Cannot delete category with existing products!')
+      alert('نمی‌توان دسته‌بندی دارای محصول را حذف کرد!')
       return
     }
 
-    if (confirm('Are you sure you want to delete this category?')) {
+    if (confirm('آیا از حذف این دسته‌بندی اطمینان دارید؟')) {
       await deleteCategory(categoryId)
     }
   }
@@ -48,7 +48,7 @@ export default function CategoriesContent() {
     return (
       <div className="p-6 space-y-6 h-full overflow-y-auto">
         <div className="flex items-center justify-center h-64">
-          <div className="text-lg text-gray-500">Loading categories...</div>
+          <div className="text-lg text-gray-500">در حال بارگذاری دسته‌بندی‌ها...</div>
         </div>
       </div>
     )
@@ -69,12 +69,12 @@ export default function CategoriesContent() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
-          <p className="text-gray-500">Manage your product categories and organization</p>
+          <h1 className="text-3xl font-bold text-gray-900">دسته‌بندی‌ها</h1>
+          <p className="text-gray-500">مدیریت دسته‌بندی محصولات و سازماندهی</p>
         </div>
         <Button onClick={() => setIsAddModalOpen(true)} className="flex items-center space-x-2">
-          <Plus className="h-4 w-4" />
-          <span>Add Category</span>
+                        <Plus className="h-4 w-4 ml-2" />
+              افزودن دسته‌بندی
         </Button>
       </div>
 
@@ -82,39 +82,39 @@ export default function CategoriesContent() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Categories</CardTitle>
+            <CardTitle className="text-sm font-medium">کل دسته‌بندی‌ها</CardTitle>
             <Folder className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalCategories}</div>
             <p className="text-xs text-muted-foreground">
-              Categories created
+              دسته‌بندی ایجاد شده
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Categories</CardTitle>
+            <CardTitle className="text-sm font-medium">دسته‌بندی‌های فعال</CardTitle>
             <FolderOpen className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{activeCategories}</div>
             <p className="text-xs text-muted-foreground">
-              Currently active
+              در حال حاضر فعال
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+            <CardTitle className="text-sm font-medium">کل محصولات</CardTitle>
             <Folder className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalProducts}</div>
             <p className="text-xs text-muted-foreground">
-              Across all categories
+              در همه دسته‌بندی‌ها
             </p>
           </CardContent>
         </Card>
@@ -157,18 +157,18 @@ export default function CategoriesContent() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Product Count</span>
-                <span className="font-medium">{category.productCount || 0} products</span>
+                <span className="text-sm text-gray-500">تعداد محصولات</span>
+                <span className="font-medium">{category.productCount || 0} محصول</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Status</span>
+                <span className="text-sm text-gray-500">وضعیت</span>
                 <div className="flex items-center space-x-2">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     category.isActive 
                       ? 'bg-green-100 text-green-800' 
                       : 'bg-gray-100 text-gray-800'
                   }`}>
-                    {category.isActive ? 'Active' : 'Inactive'}
+                    {category.isActive ? 'فعال' : 'غیرفعال'}
                   </span>
                   <Button
                     variant="outline"
@@ -176,7 +176,7 @@ export default function CategoriesContent() {
                     onClick={() => handleToggleActive(category.id)}
                     className="h-6 px-2 text-xs"
                   >
-                    {category.isActive ? 'Deactivate' : 'Activate'}
+                    {category.isActive ? 'غیرفعال کردن' : 'فعال کردن'}
                   </Button>
                 </div>
               </div>
@@ -189,13 +189,13 @@ export default function CategoriesContent() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Folder className="h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No categories found</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">دسته‌بندی‌ای یافت نشد</h3>
             <p className="text-gray-500 text-center mb-6">
-              Get started by creating your first product category to organize your inventory.
+              با ایجاد اولین دسته‌بندی محصول برای سازماندهی موجودی خود شروع کنید.
             </p>
             <Button onClick={() => setIsAddModalOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Your First Category
+              افزودن اولین دسته‌بندی
             </Button>
           </CardContent>
         </Card>

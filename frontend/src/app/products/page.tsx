@@ -35,19 +35,19 @@ export default function ProductsPage() {
   const handleToggleAvailability = async (productId: string) => {
     try {
       await toggleAvailability(productId)
-      toast.success('Product availability updated!')
+      toast.success('وضعیت در دسترس بودن محصول به‌روزرسانی شد!')
     } catch (error) {
-      toast.error('Failed to update product availability')
+      toast.error('به‌روزرسانی وضعیت محصول با خطا مواجه شد')
     }
   }
 
   const handleDeleteProduct = async (productId: string) => {
-    if (confirm('Are you sure you want to delete this product?')) {
+    if (confirm('آیا از حذف این محصول اطمینان دارید؟')) {
       try {
         await deleteProduct(productId)
-        toast.success('Product deleted successfully!')
+        toast.success('محصول با موفقیت حذف شد!')
       } catch (error) {
-        toast.error('Failed to delete product')
+        toast.error('حذف محصول با خطا مواجه شد')
       }
     }
   }
@@ -69,7 +69,7 @@ export default function ProductsPage() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-500">Loading products and categories...</p>
+            <p className="mt-4 text-gray-500">در حال بارگذاری محصولات و دسته‌بندی‌ها...</p>
           </div>
         </div>
       </div>
@@ -81,12 +81,12 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500">Manage your cafe's product inventory</p>
+          <h1 className="text-3xl font-bold text-gray-900">محصولات</h1>
+          <p className="text-gray-500">مدیریت موجودی محصولات کافه</p>
         </div>
         <Button onClick={() => setIsAddModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Product
+          افزودن محصول
         </Button>
       </div>
 
@@ -97,7 +97,7 @@ export default function ProductsPage() {
             <div className="flex items-center">
               <Package className="h-8 w-8 text-blue-600" />
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Total Products</p>
+                <p className="text-sm font-medium text-gray-500">کل محصولات</p>
                 <p className="text-2xl font-bold text-gray-900">{totalProducts}</p>
               </div>
             </div>
@@ -109,7 +109,7 @@ export default function ProductsPage() {
             <div className="flex items-center">
               <AlertTriangle className="h-8 w-8 text-orange-600" />
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Low Stock</p>
+                <p className="text-sm font-medium text-gray-500">موجودی کم</p>
                 <p className="text-2xl font-bold text-orange-600">{lowStockProducts}</p>
               </div>
             </div>
@@ -123,7 +123,7 @@ export default function ProductsPage() {
                 <span className="text-red-600 font-bold">0</span>
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Out of Stock</p>
+                <p className="text-sm font-medium text-gray-500">ناموجود</p>
                 <p className="text-2xl font-bold text-red-600">{outOfStockProducts}</p>
               </div>
             </div>
@@ -137,7 +137,7 @@ export default function ProductsPage() {
                 <span className="text-green-600 font-bold">$</span>
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Inventory Value</p>
+                <p className="text-sm font-medium text-gray-500">ارزش موجودی</p>
                 <p className="text-2xl font-bold text-green-600">{formatCurrency(inventoryValue)}</p>
               </div>
             </div>
@@ -187,13 +187,13 @@ export default function ProductsPage() {
                 {/* Price Information */}
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-sm text-gray-500">Selling Price</p>
+                    <p className="text-sm text-gray-500">قیمت فروش</p>
                     <p className="text-xl font-bold text-green-600">
                       {formatCurrency(product.price)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-500">Cost</p>
+                    <p className="text-sm text-gray-500">هزینه</p>
                     <p className="text-lg font-medium">
                       {formatCurrency(product.cost)}
                     </p>
@@ -203,37 +203,37 @@ export default function ProductsPage() {
                 {/* Stock Information */}
                 <div className={`p-3 rounded-lg ${stockStatus.bg}`}>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Stock Level</span>
+                    <span className="text-sm font-medium">سطح موجودی</span>
                     <span className={`text-lg font-bold ${stockStatus.color}`}>
                       {product.stock}
                     </span>
                   </div>
                   <div className="flex justify-between items-center mt-1">
-                    <span className="text-xs text-gray-500">Alert at: {product.lowStockAlert}</span>
+                    <span className="text-xs text-gray-500">هشدار در: {product.lowStockAlert}</span>
                     {stockStatus.status === 'low' && (
-                      <span className="text-xs text-orange-600 font-medium">LOW STOCK</span>
+                      <span className="text-xs text-orange-600 font-medium">موجودی کم</span>
                     )}
                     {stockStatus.status === 'out' && (
-                      <span className="text-xs text-red-600 font-medium">OUT OF STOCK</span>
+                      <span className="text-xs text-red-600 font-medium">ناموجود</span>
                     )}
                   </div>
                 </div>
 
                 {/* Availability Status */}
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Status:</span>
+                  <span className="text-sm text-gray-500">وضعیت:</span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     product.isAvailable 
                       ? 'bg-green-100 text-green-800'
                       : 'bg-gray-100 text-gray-800'
                   }`}>
-                    {product.isAvailable ? 'Available' : 'Unavailable'}
+                    {product.isAvailable ? 'موجود' : 'ناموجود'}
                   </span>
                 </div>
 
                 {/* Profit Margin */}
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Profit Margin</span>
+                  <span className="text-gray-500">حاشیه سود</span>
                   <span className="font-medium text-blue-600">
                     {(((product.price - product.cost) / product.price) * 100).toFixed(1)}%
                   </span>
@@ -242,7 +242,7 @@ export default function ProductsPage() {
                 {/* Actions */}
                 <div className="flex space-x-2 pt-2">
                   <Button variant="outline" size="sm" className="flex-1">
-                    Adjust Stock
+                    تنظیم موجودی
                   </Button>
                   <Button
                     variant={product.isAvailable ? "outline" : "default"}
@@ -250,7 +250,7 @@ export default function ProductsPage() {
                     className="flex-1"
                     onClick={() => handleToggleAvailability(product.id)}
                   >
-                    {product.isAvailable ? 'Disable' : 'Enable'}
+                    {product.isAvailable ? 'غیرفعال' : 'فعال'}
                   </Button>
                 </div>
               </CardContent>
@@ -265,9 +265,9 @@ export default function ProductsPage() {
         >
           <CardContent className="flex flex-col items-center justify-center p-6 h-full min-h-[300px]">
             <Plus className="h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">Add New Product</h3>
+            <h3 className="text-lg font-medium text-gray-600 mb-2">افزودن محصول جدید</h3>
             <p className="text-sm text-gray-500 text-center">
-              Create a new product for your cafe
+              محصول جدیدی برای کافه خود ایجاد کنید
             </p>
           </CardContent>
         </Card>

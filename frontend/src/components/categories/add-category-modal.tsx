@@ -84,7 +84,7 @@ export function AddCategoryModal({ isOpen, onClose }: AddCategoryModalProps) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold">Add New Category</h2>
+          <h2 className="text-xl font-bold">افزودن دسته‌بندی جدید</h2>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -93,12 +93,12 @@ export function AddCategoryModal({ isOpen, onClose }: AddCategoryModalProps) {
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Category Name */}
           <div>
-            <label className="block text-sm font-medium mb-2">Category Name *</label>
+            <label className="block text-sm font-medium mb-2">نام دسته‌بندی *</label>
             <Input
               type="text"
               value={name}
               onChange={(e) => handleInputChange('name', e.target.value)}
-              placeholder="Enter category name"
+              placeholder="نام دسته‌بندی را وارد کنید"
               className={errors.name ? 'border-red-500' : ''}
             />
             {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
@@ -106,18 +106,18 @@ export function AddCategoryModal({ isOpen, onClose }: AddCategoryModalProps) {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium mb-2">Description</label>
+            <label className="block text-sm font-medium mb-2">توضیحات</label>
             <Input
               type="text"
               value={description}
               onChange={(e) => handleInputChange('description', e.target.value)}
-              placeholder="Enter category description (optional)"
+              placeholder="توضیحات دسته‌بندی را وارد کنید (اختیاری)"
             />
           </div>
 
           {/* Color Selection */}
           <div>
-            <label className="block text-sm font-medium mb-2">Color</label>
+            <label className="block text-sm font-medium mb-2">رنگ</label>
             <div className="grid grid-cols-5 gap-2">
               {colorOptions.map((color) => (
                 <button
@@ -135,7 +135,7 @@ export function AddCategoryModal({ isOpen, onClose }: AddCategoryModalProps) {
               ))}
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              Selected color: <span style={{ color: selectedColor }}>{selectedColor}</span>
+              رنگ انتخاب شده: <span style={{ color: selectedColor }}>{selectedColor}</span>
             </p>
           </div>
 
@@ -149,7 +149,7 @@ export function AddCategoryModal({ isOpen, onClose }: AddCategoryModalProps) {
               className="rounded"
             />
             <label htmlFor="isActive" className="text-sm font-medium">
-              Active (available for products)
+              فعال (برای محصولات در دسترس)
             </label>
           </div>
 
@@ -161,14 +161,14 @@ export function AddCategoryModal({ isOpen, onClose }: AddCategoryModalProps) {
               onClick={onClose}
               className="flex-1"
             >
-              Cancel
+              انصراف
             </Button>
             <Button
               type="submit"
               className="flex-1"
               disabled={loading}
             >
-              {loading ? 'Adding...' : 'Add Category'}
+              {loading ? 'در حال افزودن...' : 'افزودن دسته‌بندی'}
             </Button>
           </div>
         </form>

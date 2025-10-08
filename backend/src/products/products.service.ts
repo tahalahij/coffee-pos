@@ -17,14 +17,14 @@ export class ProductsService {
   async create(createProductDto: CreateProductDto) {
     // Validate required fields
     if (!createProductDto.categoryId) {
-      throw new BadRequestException('Category ID is required');
+      throw new BadRequestException('شناسه دسته‌بندی الزامی است');
     }
 
     // Check if category exists
     const category = await this.categoryModel.findByPk(createProductDto.categoryId);
 
     if (!category) {
-      throw new BadRequestException('Category not found');
+      throw new BadRequestException('دسته‌بندی یافت نشد');
     }
 
     // Check if product name is unique
@@ -33,7 +33,7 @@ export class ProductsService {
     });
 
     if (existingProduct) {
-      throw new BadRequestException('Product name already exists');
+      throw new BadRequestException('نام محصول قبلاً وجود دارد');
     }
 
     // Check if SKU is unique (if provided)
@@ -43,7 +43,7 @@ export class ProductsService {
       });
 
       if (existingSku) {
-        throw new BadRequestException('SKU already exists');
+        throw new BadRequestException('کد SKU قبلاً وجود دارد');
       }
     }
 
@@ -77,7 +77,7 @@ export class ProductsService {
     });
 
     if (!product) {
-      throw new NotFoundException(`Product with ID ${id} not found`);
+      throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
     }
 
     return product;
@@ -87,14 +87,14 @@ export class ProductsService {
     const product = await this.productModel.findByPk(id);
 
     if (!product) {
-      throw new NotFoundException(`Product with ID ${id} not found`);
+      throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
     }
 
     // Check if category exists (if categoryId is being updated)
     if (updateProductDto.categoryId) {
       const category = await this.categoryModel.findByPk(updateProductDto.categoryId);
       if (!category) {
-        throw new BadRequestException('Category not found');
+        throw new BadRequestException('دسته‌بندی یافت نشد');
       }
     }
 
@@ -108,7 +108,7 @@ export class ProductsService {
       });
 
       if (existingProduct) {
-        throw new BadRequestException('Product name already exists');
+        throw new BadRequestException('نام محصول قبلاً وجود دارد');
       }
     }
 
@@ -122,7 +122,7 @@ export class ProductsService {
       });
 
       if (existingSku) {
-        throw new BadRequestException('SKU already exists');
+        throw new BadRequestException('کد SKU قبلاً وجود دارد');
       }
     }
 
@@ -136,23 +136,23 @@ export class ProductsService {
     const product = await this.productModel.findByPk(id);
 
     if (!product) {
-      throw new NotFoundException(`Product with ID ${id} not found`);
+      throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
     }
 
     await product.destroy();
-    return { message: 'Product deleted successfully' };
+    return { message: 'محصول با موفقیت حذف شد' };
   }
 
   async updateStock(id: number, quantity: number) {
     const product = await this.productModel.findByPk(id);
 
     if (!product) {
-      throw new NotFoundException(`Product with ID ${id} not found`);
+      throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
     }
 
     const newStock = product.stock + quantity;
     if (newStock < 0) {
-      throw new BadRequestException('Insufficient stock');
+      throw new BadRequestException('موجودی کافی نیست');
     }
 
     await product.update({ stock: newStock });

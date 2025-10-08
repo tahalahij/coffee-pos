@@ -34,9 +34,9 @@ export default function CategoriesPage() {
   const handleToggleActive = async (categoryId: string) => {
     try {
       await toggleActive(categoryId)
-      toast.success('Category status updated!')
+      toast.success('وضعیت دسته‌بندی به‌روزرسانی شد!')
     } catch (error) {
-      toast.error('Failed to update category status')
+      toast.error('به‌روزرسانی وضعیت دسته‌بندی با خطا مواجه شد')
     }
   }
 
@@ -44,16 +44,16 @@ export default function CategoriesPage() {
     const categoryProducts = products.filter(p => p.categoryId === categoryId)
 
     if (categoryProducts.length > 0) {
-      toast.error(`Cannot delete category. It has ${categoryProducts.length} products.`)
+      toast.error(`امکان حذف دسته‌بندی وجود ندارد. این دسته‌بندی ${categoryProducts.length} محصول دارد.`)
       return
     }
 
-    if (confirm('Are you sure you want to delete this category?')) {
+    if (confirm('آیا از حذف این دسته‌بندی اطمینان دارید؟')) {
       try {
         await deleteCategory(categoryId)
-        toast.success('Category deleted successfully!')
+        toast.success('دسته‌بندی با موفقیت حذف شد!')
       } catch (error) {
-        toast.error('Failed to delete category')
+        toast.error('حذف دسته‌بندی با خطا مواجه شد')
       }
     }
   }
@@ -81,7 +81,7 @@ export default function CategoriesPage() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-500">Loading categories...</p>
+            <p className="mt-4 text-gray-500">در حال بارگذاری دسته‌بندی‌ها...</p>
           </div>
         </div>
       </div>
@@ -93,12 +93,12 @@ export default function CategoriesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
-          <p className="text-gray-500">Organize your products into categories</p>
+          <h1 className="text-3xl font-bold text-gray-900">دسته‌بندی‌ها</h1>
+          <p className="text-gray-500">محصولات خود را در دسته‌بندی‌ها سازماندهی کنید</p>
         </div>
         <Button onClick={() => setIsAddModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Category
+          افزودن دسته‌بندی
         </Button>
       </div>
 
@@ -109,7 +109,7 @@ export default function CategoriesPage() {
             <div className="flex items-center">
               <Folder className="h-8 w-8 text-blue-600" />
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Total Categories</p>
+                <p className="text-sm font-medium text-gray-500">کل دسته‌بندی‌ها</p>
                 <p className="text-2xl font-bold text-gray-900">{totalCategories}</p>
               </div>
             </div>
@@ -121,7 +121,7 @@ export default function CategoriesPage() {
             <div className="flex items-center">
               <Eye className="h-8 w-8 text-green-600" />
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Active Categories</p>
+                <p className="text-sm font-medium text-gray-500">دسته‌بندی‌های فعال</p>
                 <p className="text-2xl font-bold text-green-600">{activeCategories}</p>
               </div>
             </div>
@@ -135,7 +135,7 @@ export default function CategoriesPage() {
                 <span className="text-purple-600 font-bold">#</span>
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Total Products</p>
+                <p className="text-sm font-medium text-gray-500">کل محصولات</p>
                 <p className="text-2xl font-bold text-purple-600">{totalProducts}</p>
               </div>
             </div>
@@ -149,7 +149,7 @@ export default function CategoriesPage() {
                 <span className="text-green-600 font-bold">$</span>
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500">Inventory Value</p>
+                <p className="text-sm font-medium text-gray-500">ارزش موجودی</p>
                 <p className="text-2xl font-bold text-green-600">{formatCurrency(totalInventoryValue)}</p>
               </div>
             </div>
@@ -197,11 +197,11 @@ export default function CategoriesPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 bg-blue-50 rounded-lg">
                     <p className="text-2xl font-bold text-blue-600">{stats.totalProducts}</p>
-                    <p className="text-xs text-gray-500">Total Products</p>
+                    <p className="text-xs text-gray-500">کل محصولات</p>
                   </div>
                   <div className="text-center p-3 bg-green-50 rounded-lg">
                     <p className="text-2xl font-bold text-green-600">{stats.activeProducts}</p>
-                    <p className="text-xs text-gray-500">Active Products</p>
+                    <p className="text-xs text-gray-500">محصولات فعال</p>
                   </div>
                 </div>
 
@@ -210,7 +210,7 @@ export default function CategoriesPage() {
                   <p className="text-lg font-bold text-gray-900">
                     {formatCurrency(stats.totalValue)}
                   </p>
-                  <p className="text-xs text-gray-500">Inventory Value</p>
+                  <p className="text-xs text-gray-500">ارزش موجودی</p>
                 </div>
 
                 {/* Status and Actions */}
@@ -220,7 +220,7 @@ export default function CategoriesPage() {
                       ? 'bg-green-100 text-green-800'
                       : 'bg-gray-100 text-gray-800'
                   }`}>
-                    {category.isActive ? 'Active' : 'Inactive'}
+                    {category.isActive ? 'فعال' : 'غیرفعال'}
                   </span>
 
                   <Button
@@ -231,12 +231,12 @@ export default function CategoriesPage() {
                     {category.isActive ? (
                       <>
                         <EyeOff className="h-4 w-4 mr-1" />
-                        Deactivate
+                        غیرفعال کردن
                       </>
                     ) : (
                       <>
                         <Eye className="h-4 w-4 mr-1" />
-                        Activate
+                        فعال کردن
                       </>
                     )}
                   </Button>
@@ -253,9 +253,9 @@ export default function CategoriesPage() {
         >
           <CardContent className="flex flex-col items-center justify-center p-6 h-full min-h-[300px]">
             <Plus className="h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">Add New Category</h3>
+            <h3 className="text-lg font-medium text-gray-600 mb-2">افزودن دسته‌بندی جدید</h3>
             <p className="text-sm text-gray-500 text-center">
-              Create a new category to organize your products
+              دسته‌بندی جدیدی برای سازماندهی محصولاتتان ایجاد کنید
             </p>
           </CardContent>
         </Card>
@@ -266,13 +266,13 @@ export default function CategoriesPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Add New Category</h2>
+              <h2 className="text-xl font-bold">افزودن دسته‌بندی جدید</h2>
               <Button variant="ghost" onClick={() => setIsAddModalOpen(false)}>
                 ✕
               </Button>
             </div>
             <p className="text-gray-500 text-center py-8">
-              Category creation modal coming soon...
+              مودال ایجاد دسته‌بندی به زودی...
             </p>
           </div>
         </div>

@@ -116,8 +116,8 @@ export default function SettingsContent() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-500">Configure your cafe POS system</p>
+          <h1 className="text-3xl font-bold text-gray-900">تنظیمات</h1>
+          <p className="text-gray-500">سیستم POS کافه خود را پیکربندی کنید</p>
         </div>
         <Button
           onClick={handleSave}
@@ -126,13 +126,13 @@ export default function SettingsContent() {
         >
           {isSaving ? (
             <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Saving...
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white ml-2"></div>
+              در حال ذخیره...
             </>
           ) : (
             <>
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
+              <Save className="h-4 w-4 ml-2" />
+              ذخیره تغییرات
             </>
           )}
         </Button>
@@ -143,31 +143,31 @@ export default function SettingsContent() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Settings className="h-5 w-5 mr-2" />
-              Store Information
+              <Settings className="h-5 w-5 ml-2" />
+              اطلاعات فروشگاه
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Store Name *
+                نام فروشگاه *
               </label>
               <Input
                 value={settings.storeName}
                 onChange={(e) => handleInputChange('storeName', e.target.value)}
-                placeholder="Enter store name"
+                placeholder="نام فروشگاه را وارد کنید"
                 required
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Address
+                آدرس
               </label>
               <textarea
                 value={settings.storeAddress}
                 onChange={(e) => handleInputChange('storeAddress', e.target.value)}
-                placeholder="Enter store address"
+                placeholder="آدرس فروشگاه را وارد کنید"
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -175,7 +175,7 @@ export default function SettingsContent() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number
+                شماره تلفن
               </label>
               <Input
                 value={settings.phone}
@@ -186,13 +186,13 @@ export default function SettingsContent() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email Address *
+                آدرس ایمیل *
               </label>
               <Input
                 type="email"
                 value={settings.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
-                placeholder="Enter email address"
+                placeholder="آدرس ایمیل را وارد کنید"
                 required
               />
             </div>
@@ -203,14 +203,14 @@ export default function SettingsContent() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Database className="h-5 w-5 mr-2" />
-              Business Settings
+              <Database className="h-5 w-5 ml-2" />
+              تنظیمات کسب‌وکار
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tax Rate (%) *
+                نرخ مالیات (٪) *
               </label>
               <Input
                 type="number"
@@ -224,17 +224,18 @@ export default function SettingsContent() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Currency
+                واحد پول
               </label>
               <select
                 value={settings.currency}
                 onChange={(e) => handleInputChange('currency', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="USD">USD ($)</option>
-                <option value="EUR">EUR (€)</option>
-                <option value="GBP">GBP (£)</option>
-                <option value="PKR">PKR (Rs)</option>
+                <option value="USD">دلار آمریکا ($)</option>
+                <option value="EUR">یورو (€)</option>
+                <option value="GBP">پوند انگلیس (£)</option>
+                <option value="PKR">روپیه پاکستان (Rs)</option>
+                <option value="IRR">ریال ایران (ریال)</option>
               </select>
             </div>
           </CardContent>
@@ -244,7 +245,7 @@ export default function SettingsContent() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Bell className="h-5 w-5 mr-2" />
+              <Bell className="h-5 w-5 ml-2" />
               Notifications
             </CardTitle>
           </CardHeader>
@@ -277,7 +278,7 @@ export default function SettingsContent() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Printer className="h-5 w-5 mr-2" />
+              <Printer className="h-5 w-5 ml-2" />
               System Settings
             </CardTitle>
           </CardHeader>

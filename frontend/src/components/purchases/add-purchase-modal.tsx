@@ -108,7 +108,7 @@ export default function AddPurchaseModal({ isOpen, onClose, onSubmit }: AddPurch
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium">Items</h3>
               <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4 ml-2" />
                 Add Item
               </Button>
             </div>

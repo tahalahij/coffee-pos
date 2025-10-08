@@ -106,7 +106,7 @@ export default function CustomersContent() {
       <form onSubmit={handleSearch} className="mb-4 flex gap-2">
         <input
           className="border px-2 py-1 rounded"
-          placeholder="Search by name or phone"
+          placeholder="جستجو بر اساس نام یا تلفن"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -115,7 +115,7 @@ export default function CustomersContent() {
       <form onSubmit={handleAdd} className="mb-4 flex gap-2">
         <input
           className="border px-2 py-1 rounded"
-          placeholder="Name"
+          placeholder="نام"
           value={name}
           onChange={e => setName(e.target.value)}
           required
@@ -148,7 +148,7 @@ export default function CustomersContent() {
                 <td className="border px-2 py-1">{c.phone}</td>
                 <td className="border px-2 py-1">{new Date(c.joinDate).toLocaleDateString()}</td>
                 <td className="border px-2 py-1">
-                  <button className="text-blue-600 underline" onClick={() => { setSelectedCustomer(c); fetchCodes(c.id); }}>View Codes</button>
+                  <button className="text-blue-600 underline" onClick={() => { setSelectedCustomer(c); fetchCodes(c.id); }}>مشاهده کدها</button>
                 </td>
               </tr>
             ))}
@@ -159,16 +159,16 @@ export default function CustomersContent() {
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg relative">
             <button className="absolute top-2 right-2 text-gray-500" onClick={() => setShowCodes(false)}>✕</button>
-            <h2 className="text-xl font-bold mb-2">Discount Codes for {selectedCustomer.name}</h2>
-            {codesLoading ? <div>Loading...</div> : (
+            <h2 className="text-xl font-bold mb-2">کدهای تخفیف برای {selectedCustomer.name}</h2>
+            {codesLoading ? <div>در حال بارگذاری...</div> : (
               <ul className="mb-4">
                 {codes.map(code => (
                   <li key={code.id} className="mb-1 flex justify-between items-center">
                     <span>{code.code}</span>
                     <span className={code.isUsed ? 'text-red-600' : 'text-green-700'}>
-                      {code.isUsed ? 'Used' : 'Active'}
+                      {code.isUsed ? 'استفاده شده' : 'فعال'}
                     </span>
-                    <span className="text-xs text-gray-500 ml-2">Expires: {new Date(code.expiresAt).toLocaleDateString()}</span>
+                    <span className="text-xs text-gray-500 mr-2">Expires: {new Date(code.expiresAt).toLocaleDateString()}</span>
                   </li>
                 ))}
               </ul>
