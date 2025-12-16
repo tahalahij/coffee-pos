@@ -1,29 +1,37 @@
-import { PrismaClient } from '@prisma/client';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import mongoose from 'mongoose';
 
-const prisma = new PrismaClient();
+let mongod: MongoMemoryServer;
 
 beforeAll(async () => {
-  // Clean up database before running tests
-  await prisma.$connect();
-
-  // Clear all tables in correct order to avoid foreign key constraints
-  await prisma.saleItem.deleteMany();
-  await prisma.sale.deleteMany();
-  await prisma.purchaseItem.deleteMany();
-  await prisma.purchase.deleteMany();
-  await prisma.campaignProduct.deleteMany();
-  await prisma.campaignParticipation.deleteMany();
-  await prisma.campaign.deleteMany();
-  await prisma.discountCode.deleteMany();
-  await prisma.loyaltyTransaction.deleteMany();
-  await prisma.notification.deleteMany();
-  await prisma.product.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.customer.deleteMany();
+  // Create an in-memory MongoDB instance
+  mongod = await MongoMemoryServer.create();
+  const uri = mongod.getUri();
+  
+  // Set environment variable for tests
+  process.env.MONGODB_URI = uri;
+  
+  // Connect mongoose
+  await mongoose.connect(uri);
 });
 
 afterAll(async () => {
-  await prisma.$disconnect();
+  // Cleanup
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.connection.dropDatabase();
+    await mongoose.connection.close();
+  }
+  if (mongod) {
+    await mongod.stop();
+  }
+});
+
+afterEach(async () => {
+  // Clear all collections after each test
+  const collections = mongoose.connection.collections;
+  for (const key in collections) {
+    await collections[key].deleteMany({});
+  }
 });
 
 // Global test data
@@ -46,8 +54,8 @@ export const testData = {
     {
       name: 'Test Espresso',
       description: 'Test espresso product',
-      price: 2.50,
-      cost: 0.75,
+      price: 25000,
+      cost: 7500,
       stock: 100,
       lowStockAlert: 20,
       isAvailable: true,
@@ -55,8 +63,8 @@ export const testData = {
     {
       name: 'Test Croissant',
       description: 'Test croissant product',
-      price: 3.50,
-      cost: 1.20,
+      price: 35000,
+      cost: 12000,
       stock: 50,
       lowStockAlert: 10,
       isAvailable: true,

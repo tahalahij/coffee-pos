@@ -11,6 +11,7 @@ export enum PurchaseStatus {
 export class CreatePurchaseItemDto {
   @ApiProperty()
   @IsString()
+  @Transform(({ value }) => String(value))
   productId: string;
 
   @ApiProperty()

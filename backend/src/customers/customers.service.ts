@@ -1,14 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Customer } from './models/customer.model';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { Customer, CustomerDocument } from './models/customer.model';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
-import { Op } from 'sequelize';
 
 @Injectable()
 export class CustomersService {
   constructor(
-    @InjectModel(Customer)
-    private customerModel: typeof Customer,
+    @InjectModel(Customer.name)
+    private customerModel: Model<CustomerDocument>,
   ) {}
 
   async create(data: CreateCustomerDto) {
@@ -28,7 +28,7 @@ export class CustomersService {
 
     // Check for duplicate phone number
     const existingCustomer = await this.customerModel.findOne({
-      where: { phone: data.phone },
+      phone: data.phone,
     });
 
     if (existingCustomer) {
@@ -38,7 +38,7 @@ export class CustomersService {
     // Check for duplicate email if provided
     if (data.email) {
       const existingEmail = await this.customerModel.findOne({
-        where: { email: data.email },
+        email: data.email,
       });
 
       if (existingEmail) {
@@ -46,7 +46,7 @@ export class CustomersService {
       }
     }
 
-    return this.customerModel.create({
+    const customer = new this.customerModel({
       name: data.name,
       phone: data.phone,
       email: data.email,
@@ -55,26 +55,36 @@ export class CustomersService {
       totalSpent: 0,
       isActive: true,
     });
+    
+    return customer.save();
   }
 
   async findAll() {
-    return this.customerModel.findAll({
-      order: [['name', 'ASC']],
-    });
+    return this.customerModel.find().sort({ name: 1 }).lean().exec().then(customers => 
+      customers.map(c => ({ ...c, id: c._id }))
+    );
   }
 
-  async findOne(id: number) {
-    const customer = await this.customerModel.findByPk(id);
+  async findOne(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+
+    const customer = await this.customerModel.findById(id).lean();
 
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${id} not found`);
     }
 
-    return customer;
+    return { ...customer, id: customer._id };
   }
 
-  async update(id: number, updateData: UpdateCustomerDto) {
-    const customer = await this.customerModel.findByPk(id);
+  async update(id: string, updateData: UpdateCustomerDto) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+
+    const customer = await this.customerModel.findById(id);
 
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${id} not found`);
@@ -83,10 +93,8 @@ export class CustomersService {
     // Check for duplicate phone if phone is being updated
     if (updateData.phone && updateData.phone !== customer.phone) {
       const existingPhone = await this.customerModel.findOne({
-        where: {
-          phone: updateData.phone,
-          id: { [Op.ne]: id }
-        },
+        phone: updateData.phone,
+        _id: { $ne: id }
       });
 
       if (existingPhone) {
@@ -97,10 +105,8 @@ export class CustomersService {
     // Check for duplicate email if email is being updated
     if (updateData.email && updateData.email !== customer.email) {
       const existingEmail = await this.customerModel.findOne({
-        where: {
-          email: updateData.email,
-          id: { [Op.ne]: id }
-        },
+        email: updateData.email,
+        _id: { $ne: id }
       });
 
       if (existingEmail) {
@@ -114,54 +120,65 @@ export class CustomersService {
       ...(updateData.dateOfBirth && { dateOfBirth: new Date(updateData.dateOfBirth) })
     };
 
-    await customer.update(transformedData);
-    return customer;
+    Object.assign(customer, transformedData);
+    return customer.save();
   }
 
-  async remove(id: number) {
-    const customer = await this.customerModel.findByPk(id);
+  async remove(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+
+    const customer = await this.customerModel.findById(id);
 
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${id} not found`);
     }
 
-    await customer.destroy();
+    await this.customerModel.findByIdAndDelete(id);
     return { message: 'Customer deleted successfully' };
   }
 
   async search(query: string) {
-    return this.customerModel.findAll({
-      where: {
-        [Op.or]: [
-          { name: { [Op.iLike]: `%${query}%` } },
-          { phone: { [Op.like]: `%${query}%` } },
-          { email: { [Op.iLike]: `%${query}%` } },
-        ],
-      },
-      order: [['name', 'ASC']],
-      limit: 10,
-    });
+    const searchRegex = new RegExp(query, 'i');
+    const customers = await this.customerModel.find({
+      $or: [
+        { name: searchRegex },
+        { phone: searchRegex },
+        { email: searchRegex },
+      ],
+    }).sort({ name: 1 }).limit(10).lean();
+    
+    return customers.map(c => ({ ...c, id: c._id }));
   }
 
-  async addLoyaltyPoints(id: number, points: number) {
-    const customer = await this.customerModel.findByPk(id);
+  async addLoyaltyPoints(id: string, points: number) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+
+    const customer = await this.customerModel.findById(id);
 
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${id} not found`);
     }
 
-    await customer.increment('loyaltyPoints', { by: points });
-    return customer.reload();
+    customer.loyaltyPoints += points;
+    return customer.save();
   }
 
-  async updateTotalSpent(id: number, amount: number) {
-    const customer = await this.customerModel.findByPk(id);
+  async updateTotalSpent(id: string, amount: number) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+
+    const customer = await this.customerModel.findById(id);
 
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${id} not found`);
     }
 
-    await customer.increment('totalSpent', { by: amount });
-    return customer.reload();
+    customer.totalSpent += amount;
+    return customer.save();
   }
 }

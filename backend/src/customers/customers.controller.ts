@@ -3,13 +3,13 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Query,
   Param,
   HttpCode,
   HttpStatus,
-  ParseIntPipe
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
@@ -47,7 +47,7 @@ export class CustomersController {
   @ApiOperation({ summary: 'Get customer by ID' })
   @ApiResponse({ status: 200, description: 'Customer retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id') id: string) {
     return this.customersService.findOne(id);
   }
 
@@ -55,7 +55,15 @@ export class CustomersController {
   @ApiOperation({ summary: 'Update customer' })
   @ApiResponse({ status: 200, description: 'Customer updated successfully' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateCustomerDto: UpdateCustomerDto) {
+  update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
+    return this.customersService.update(id, updateCustomerDto);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Partially update customer' })
+  @ApiResponse({ status: 200, description: 'Customer updated successfully' })
+  @ApiResponse({ status: 404, description: 'Customer not found' })
+  partialUpdate(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
     return this.customersService.update(id, updateCustomerDto);
   }
 
@@ -64,7 +72,7 @@ export class CustomersController {
   @ApiResponse({ status: 204, description: 'Customer deleted successfully' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id', ParseIntPipe) id: number) {
+  remove(@Param('id') id: string) {
     return this.customersService.remove(id);
   }
 
@@ -73,7 +81,7 @@ export class CustomersController {
   @ApiResponse({ status: 200, description: 'Loyalty points added successfully' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
   addLoyaltyPoints(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() body: { points: number }
   ) {
     return this.customersService.addLoyaltyPoints(id, body.points);

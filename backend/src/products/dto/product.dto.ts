@@ -36,9 +36,9 @@ export class CreateProductDto {
   imageUrl?: string;
 
   @ApiProperty({ description: 'شناسه دسته‌بندی' })
-  @IsInt({ message: 'شناسه دسته‌بندی باید عدد صحیح باشد' })
-  @Type(() => Number)
-  categoryId: number;
+  @IsString({ message: 'شناسه دسته‌بندی باید رشته باشد' })
+  @Transform(({ value }) => String(value))
+  categoryId: string;
 
   @ApiPropertyOptional({ default: true, description: 'وضعیت در دسترس بودن' })
   @IsOptional()
@@ -104,9 +104,8 @@ export class UpdateProductDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  categoryId?: number;
+  @IsString()
+  categoryId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

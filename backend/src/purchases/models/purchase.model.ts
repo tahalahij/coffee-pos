@@ -1,5 +1,6 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, CreatedAt, UpdatedAt, HasMany, Default } from 'sequelize-typescript';
-import { PurchaseItem } from './purchase-item.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+import { PurchaseItem, PurchaseItemSchema } from './purchase-item.model';
 
 export enum PurchaseStatus {
   PENDING = 'PENDING',
@@ -7,46 +8,47 @@ export enum PurchaseStatus {
   CANCELLED = 'CANCELLED'
 }
 
-@Table({
-  tableName: 'purchases',
-  timestamps: true,
-  underscored: true,
-})
-export class Purchase extends Model<Purchase> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export type PurchaseDocument = Purchase & Document;
 
-  @AllowNull(false)
-  @Column({ field: 'supplier_name' })
+@Schema({
+  timestamps: true,
+  collection: 'purchases',
+})
+export class Purchase {
+  _id: Types.ObjectId;
+
+  @Prop({ required: true })
   supplierName: string;
 
-  @Column({ field: 'supplier_contact' })
+  @Prop()
   supplierContact: string;
 
-  @AllowNull(false)
-  @Column({ field: 'total_amount' })
+  @Prop({ required: true, type: Number })
   totalAmount: number;
 
-  @Default(PurchaseStatus.PENDING)
-  @Column(DataType.ENUM(...Object.values(PurchaseStatus)))
+  @Prop({ enum: PurchaseStatus, default: PurchaseStatus.PENDING })
   status: PurchaseStatus;
 
-  @Column(DataType.TEXT)
+  @Prop()
   notes: string;
 
-  @Column({ field: 'received_at' })
+  @Prop()
   receivedAt: Date;
 
-  @CreatedAt
-  @Column({ field: 'created_at' })
-  createdAt: Date;
-
-  @UpdatedAt
-  @Column({ field: 'updated_at' })
-  updatedAt: Date;
-
-  @HasMany(() => PurchaseItem)
+  @Prop({ type: [PurchaseItemSchema], default: [] })
   items: PurchaseItem[];
+
+  createdAt: Date;
+  updatedAt: Date;
 }
+
+export const PurchaseSchema = SchemaFactory.createForClass(Purchase);
+
+PurchaseSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

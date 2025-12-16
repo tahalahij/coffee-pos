@@ -1,122 +1,91 @@
-import { Column, Model, Table, DataType, BelongsTo, ForeignKey, HasMany, CreatedAt, UpdatedAt } from 'sequelize-typescript';
-import { Customer } from '../../customers/models/customer.model';
-import { Sale } from '../../sales/models/sale.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
 export enum DiscountType {
   PERCENTAGE = 'PERCENTAGE',
   FIXED = 'FIXED',
 }
 
-@Table({
-  tableName: 'discount_codes',
-  timestamps: true,
-})
-export class DiscountCode extends Model<DiscountCode> {
-  @Column({
-    type: DataType.INTEGER,
-    primaryKey: true,
-    autoIncrement: true,
-  })
-  id: number;
+export type DiscountCodeDocument = DiscountCode & Document;
 
-  @Column({
-    type: DataType.STRING,
-    allowNull: false,
-    unique: true,
-  })
+@Schema({
+  timestamps: true,
+  collection: 'discount_codes',
+})
+export class DiscountCode {
+  _id: Types.ObjectId;
+
+  @Prop({ required: true, unique: true })
   code: string;
 
-  @Column({
-    type: DataType.STRING,
-    allowNull: true,
-  })
+  @Prop()
   name: string;
 
-  @Column({
-    type: DataType.TEXT,
-    allowNull: true,
-  })
+  @Prop()
   description: string;
 
-  @Column({
-    type: DataType.ENUM(...Object.values(DiscountType)),
-    allowNull: false,
-  })
+  @Prop({ required: true, enum: DiscountType })
   type: DiscountType;
 
-  @Column({
-    type: DataType.DECIMAL(10, 2),
-    allowNull: false,
-  })
+  @Prop({ required: true, type: Number })
   value: number;
 
-  @Column({
-    type: DataType.DECIMAL(10, 2),
-    allowNull: true,
-    field: 'min_purchase',
-  })
+  @Prop({ type: Number })
   minPurchase: number;
 
-  @Column({
-    type: DataType.DECIMAL(10, 2),
-    allowNull: true,
-    field: 'max_discount',
-  })
+  @Prop({ type: Number })
   maxDiscount: number;
 
-  @Column({
-    type: DataType.INTEGER,
-    allowNull: true,
-    field: 'usage_limit',
-  })
+  @Prop()
   usageLimit: number;
 
-  @Column({
-    type: DataType.INTEGER,
-    allowNull: false,
-    defaultValue: 0,
-    field: 'usage_count',
-  })
+  @Prop({ default: 0 })
   usageCount: number;
 
-  @ForeignKey(() => Customer)
-  @Column({
-    type: DataType.INTEGER,
-    allowNull: true,
-    field: 'customer_id',
-  })
-  customerId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Customer' })
+  customerId: Types.ObjectId;
 
-  @Column({
-    type: DataType.DATE,
-    allowNull: true,
-    field: 'expires_at',
-  })
+  @Prop()
+  startsAt: Date;
+
+  @Prop()
   expiresAt: Date;
 
-  @Column({
-    type: DataType.BOOLEAN,
-    allowNull: false,
-    defaultValue: true,
-    field: 'is_active',
-  })
+  @Prop({ default: true })
   isActive: boolean;
 
-  @CreatedAt
-  @Column({
-    field: 'created_at',
-  })
+  @Prop({ default: false })
+  productRestricted: boolean;
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Product' }], default: [] })
+  productIds: Types.ObjectId[];
+
   createdAt: Date;
-
-  @UpdatedAt
-  @Column({
-    field: 'updated_at',
-  })
   updatedAt: Date;
-
-  @BelongsTo(() => Customer)
-  customer: Customer;
-
-  @HasMany(() => Sale)
-  sales: Sale[];
 }
+
+export const DiscountCodeSchema = SchemaFactory.createForClass(DiscountCode);
+
+// Virtual populate for customer
+DiscountCodeSchema.virtual('customer', {
+  ref: 'Customer',
+  localField: 'customerId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+// Virtual populate for products
+DiscountCodeSchema.virtual('products', {
+  ref: 'Product',
+  localField: 'productIds',
+  foreignField: '_id',
+});
+
+DiscountCodeSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

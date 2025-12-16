@@ -6,12 +6,13 @@ import { POSInterface } from '@/components/pos/pos-interface'
 import DashboardContent from '@/components/dashboard/dashboard-content'
 import ProductsContent from '@/components/products/products-content'
 import CategoriesContent from '@/components/categories/categories-content'
+import DiscountsContent from '@/components/discounts/discounts-content'
 import SalesContent from '@/components/sales/sales-content'
 import PurchasesContent from '@/components/purchases/purchases-content'
 import AnalyticsContent from '@/components/analytics/analytics-content'
 import SettingsContent from '@/components/settings/settings-content'
 
-export type TabType = 'pos' | 'dashboard' | 'products' | 'categories' | 'sales' | 'purchases' | 'analytics' | 'settings'
+export type TabType = 'pos' | 'dashboard' | 'products' | 'categories' | 'discounts' | 'sales' | 'purchases' | 'analytics' | 'settings'
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabType>('pos')
@@ -26,6 +27,8 @@ export default function HomePage() {
         return <ProductsContent />
       case 'categories':
         return <CategoriesContent />
+      case 'discounts':
+        return <DiscountsContent />
       case 'sales':
         return <SalesContent />
       case 'purchases':

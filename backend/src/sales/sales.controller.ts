@@ -8,7 +8,6 @@ import {
   Query,
   HttpCode,
   HttpStatus,
-  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { SalesService } from './sales.service';
@@ -46,7 +45,7 @@ export class SalesController {
   @ApiOperation({ summary: 'Get sale by ID' })
   @ApiResponse({ status: 200, description: 'Sale retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Sale not found' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id') id: string) {
     return this.salesService.findOne(id);
   }
 
@@ -54,7 +53,7 @@ export class SalesController {
   @ApiOperation({ summary: 'Update sale' })
   @ApiResponse({ status: 200, description: 'Sale updated successfully' })
   @ApiResponse({ status: 404, description: 'Sale not found' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateSaleDto: UpdateSaleDto) {
+  update(@Param('id') id: string, @Body() updateSaleDto: UpdateSaleDto) {
     return this.salesService.update(id, updateSaleDto);
   }
 

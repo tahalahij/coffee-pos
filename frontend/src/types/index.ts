@@ -1,9 +1,9 @@
 export interface Product {
-  id: number
+  id: string
   name: string
   description?: string
   price: number
-  categoryId: number
+  categoryId: string
   imageUrl?: string
   isAvailable: boolean
   stock?: number
@@ -14,7 +14,7 @@ export interface Product {
 }
 
 export interface Category {
-  id: number
+  id: string
   name: string
   description?: string
   color: string
@@ -99,4 +99,46 @@ export interface Discount {
   is_active: boolean
   start_date?: Date
   end_date?: Date
+}
+
+export interface DiscountCode {
+  id: string
+  code: string
+  name?: string
+  description?: string
+  type: 'PERCENTAGE' | 'FIXED'
+  value: number
+  minPurchase?: number
+  maxDiscount?: number
+  usageLimit?: number
+  usageCount: number
+  customerId?: string
+  customer?: {
+    id: string
+    name: string
+    phone: string
+  }
+  startsAt?: string
+  expiresAt?: string
+  isActive: boolean
+  productRestricted: boolean
+  products?: Array<{
+    id: string
+    name: string
+    price: number
+  }>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AppliedDiscount {
+  id: string
+  code: string
+  name?: string
+  discountCodeId: string
+  discountAmount: number
+  finalAmount: number
+  type: 'PERCENTAGE' | 'FIXED'
+  value: number
+  productRestricted: boolean
 }

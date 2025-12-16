@@ -1,8 +1,6 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Unique, CreatedAt, UpdatedAt, ForeignKey, BelongsTo, HasMany, Default } from 'sequelize-typescript';
-import { Customer } from '../../customers/models/customer.model';
-import { SaleItem } from './sale-item.model';
-import { DiscountCode } from '../../discounts/models/discount-code.model';
-import { Campaign } from '../../campaigns/models/campaign.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+import { SaleItem, SaleItemSchema } from './sale-item.model';
 
 export enum PaymentMethod {
   CASH = 'CASH',
@@ -16,95 +14,101 @@ export enum SaleStatus {
   CANCELLED = 'CANCELLED'
 }
 
-@Table({
-  tableName: 'sales',
-  timestamps: true,
-  underscored: true,
-})
-export class Sale extends Model<Sale> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export type SaleDocument = Sale & Document;
 
-  @Unique
-  @AllowNull(false)
-  @Column({ field: 'receipt_number' })
+@Schema({
+  timestamps: true,
+  collection: 'sales',
+})
+export class Sale {
+  _id: Types.ObjectId;
+
+  @Prop({ required: true, unique: true })
   receiptNumber: string;
 
-  @ForeignKey(() => Customer)
-  @Column({ field: 'customer_id' })
-  customerId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Customer' })
+  customerId: Types.ObjectId;
 
-  @AllowNull(false)
-  @Column(DataType.DECIMAL(10, 2))
+  @Prop({ required: true, type: Number })
   subtotal: number;
 
-  @Default(0)
-  @Column({ type: DataType.DECIMAL(10, 2), field: 'tax_amount' })
+  @Prop({ default: 0, type: Number })
   taxAmount: number;
 
-  @Default(0)
-  @Column({ type: DataType.DECIMAL(10, 2), field: 'discount_amount' })
+  @Prop({ default: 0, type: Number })
   discountAmount: number;
 
-  @AllowNull(false)
-  @Column({ type: DataType.DECIMAL(10, 2), field: 'total_amount' })
+  @Prop({ required: true, type: Number })
   totalAmount: number;
 
-  @AllowNull(false)
-  @Column({ field: 'payment_method' })
+  @Prop({ required: true, enum: PaymentMethod })
   paymentMethod: PaymentMethod;
 
-  @Default(SaleStatus.COMPLETED)
-  @Column(DataType.ENUM(...Object.values(SaleStatus)))
+  @Prop({ enum: SaleStatus, default: SaleStatus.COMPLETED })
   status: SaleStatus;
 
-  @Column({ type: DataType.DECIMAL(10, 2), field: 'cash_received' })
+  @Prop({ type: Number })
   cashReceived: number;
 
-  @Column({ type: DataType.DECIMAL(10, 2), field: 'change_given' })
+  @Prop({ type: Number })
   changeGiven: number;
 
-  @Default(0)
-  @Column({ field: 'loyalty_points_used' })
+  @Prop({ default: 0 })
   loyaltyPointsUsed: number;
 
-  @Default(0)
-  @Column({ field: 'loyalty_points_earned' })
+  @Prop({ default: 0 })
   loyaltyPointsEarned: number;
 
-  @ForeignKey(() => Campaign)
-  @Column({ field: 'campaign_id' })
-  campaignId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Campaign' })
+  campaignId: Types.ObjectId;
 
-  @ForeignKey(() => DiscountCode)
-  @Column({ field: 'discount_code_id' })
-  discountCodeId: number;
+  @Prop({ type: Types.ObjectId, ref: 'DiscountCode' })
+  discountCodeId: Types.ObjectId;
 
-  @Column({ field: 'discount_campaign_id' })
-  discountCampaignId: number;
+  @Prop({ type: Types.ObjectId })
+  discountCampaignId: Types.ObjectId;
 
-  @Column(DataType.TEXT)
+  @Prop()
   notes: string;
 
-  @CreatedAt
-  @Column({ field: 'created_at' })
-  createdAt: Date;
-
-  @UpdatedAt
-  @Column({ field: 'updated_at' })
-  updatedAt: Date;
-
-  @BelongsTo(() => Customer)
-  customer: Customer;
-
-  @BelongsTo(() => DiscountCode)
-  discountCode: DiscountCode;
-
-  @BelongsTo(() => Campaign)
-  campaign: Campaign;
-
-  @HasMany(() => SaleItem)
+  @Prop({ type: [SaleItemSchema], default: [] })
   items: SaleItem[];
+
+  createdAt: Date;
+  updatedAt: Date;
 }
+
+export const SaleSchema = SchemaFactory.createForClass(Sale);
+
+// Virtual populate for customer
+SaleSchema.virtual('customer', {
+  ref: 'Customer',
+  localField: 'customerId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+// Virtual populate for discountCode
+SaleSchema.virtual('discountCode', {
+  ref: 'DiscountCode',
+  localField: 'discountCodeId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+// Virtual populate for campaign
+SaleSchema.virtual('campaign', {
+  ref: 'Campaign',
+  localField: 'campaignId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+SaleSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

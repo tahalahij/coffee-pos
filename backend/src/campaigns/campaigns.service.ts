@@ -1,24 +1,35 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { DiscountCampaign, CampaignProduct, CampaignParticipation, CampaignStatus, DiscountType, CampaignType, LoyaltyTier } from './models/discount-campaign.model';
-import { Customer } from '../customers/models/customer.model';
-import { Sale } from '../sales/models/sale.model';
-import { Op } from 'sequelize';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import {
+  DiscountCampaign,
+  DiscountCampaignDocument,
+  CampaignProduct,
+  CampaignProductDocument,
+  CampaignParticipation,
+  CampaignParticipationDocument,
+  CampaignStatus,
+  DiscountType,
+  CampaignType,
+  LoyaltyTier,
+} from './models/discount-campaign.model';
+import { Customer, CustomerDocument } from '../customers/models/customer.model';
+import { Sale, SaleDocument } from '../sales/models/sale.model';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 
 @Injectable()
 export class CampaignsService {
   constructor(
-    @InjectModel(DiscountCampaign)
-    private discountCampaignModel: typeof DiscountCampaign,
-    @InjectModel(CampaignProduct)
-    private campaignProductModel: typeof CampaignProduct,
-    @InjectModel(CampaignParticipation)
-    private campaignParticipationModel: typeof CampaignParticipation,
-    @InjectModel(Customer)
-    private customerModel: typeof Customer,
-    @InjectModel(Sale)
-    private saleModel: typeof Sale,
+    @InjectModel(DiscountCampaign.name)
+    private discountCampaignModel: Model<DiscountCampaignDocument>,
+    @InjectModel(CampaignProduct.name)
+    private campaignProductModel: Model<CampaignProductDocument>,
+    @InjectModel(CampaignParticipation.name)
+    private campaignParticipationModel: Model<CampaignParticipationDocument>,
+    @InjectModel(Customer.name)
+    private customerModel: Model<CustomerDocument>,
+    @InjectModel(Sale.name)
+    private saleModel: Model<SaleDocument>,
   ) {}
 
   async createCampaign(data: CreateCampaignDto) {
@@ -45,7 +56,7 @@ export class CampaignsService {
       throw new BadRequestException('Percentage discount cannot exceed 100%');
     }
 
-    const campaign = await this.discountCampaignModel.create({
+    const campaign = new this.discountCampaignModel({
       name: data.name,
       description: data.description,
       type: data.type,
@@ -59,115 +70,118 @@ export class CampaignsService {
       targetTier: data.targetTier,
       status: CampaignStatus.DRAFT,
     });
+    await campaign.save();
 
     if (data.productIds && data.productIds.length > 0) {
-      await this.campaignProductModel.bulkCreate(
-        data.productIds.map(productId => ({
-          campaignId: campaign.id,
-          productId,
-        }))
-      );
+      const campaignProducts = data.productIds.map(productId => ({
+        campaignId: campaign._id,
+        productId: new Types.ObjectId(productId.toString()),
+      }));
+      await this.campaignProductModel.insertMany(campaignProducts);
     }
 
-    return this.getCampaignById(campaign.id);
+    return this.getCampaignById(campaign._id.toString());
   }
 
   async getCampaigns(status?: CampaignStatus) {
-    const whereCondition = status ? { status } : {};
+    const filter = status ? { status } : {};
 
-    return this.discountCampaignModel.findAll({
-      where: whereCondition,
-      include: [
-        {
-          model: CampaignProduct,
-          as: 'products',
-        },
-        {
-          model: CampaignParticipation,
-          as: 'participations',
-        },
-      ],
-      order: [['createdAt', 'DESC']],
-    });
+    const campaigns = await this.discountCampaignModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Get products and participations for each campaign
+    const campaignsWithRelations = await Promise.all(
+      campaigns.map(async (campaign) => {
+        const products = await this.campaignProductModel
+          .find({ campaignId: campaign._id })
+          .lean();
+        const participations = await this.campaignParticipationModel
+          .find({ campaignId: campaign._id })
+          .lean();
+        return { ...campaign, products, participations };
+      })
+    );
+
+    return campaignsWithRelations;
   }
 
-  async getActiveCampaigns(customerId?: number, productIds?: number[]) {
+  async getActiveCampaigns(customerId?: string, productIds?: string[]) {
     const now = new Date();
 
-    const whereCondition: any = {
+    const filter: any = {
       status: CampaignStatus.ACTIVE,
       isActive: true,
-      startDate: { [Op.lte]: now },
-      endDate: { [Op.gte]: now },
+      startDate: { $lte: now },
+      endDate: { $gte: now },
     };
 
     if (customerId) {
-      const customer = await this.customerModel.findByPk(customerId, {
-        attributes: ['loyaltyTier'],
-      });
+      const customer = await this.customerModel.findById(customerId).lean();
 
       if (customer) {
-        whereCondition[Op.or] = [
+        filter.$or = [
           { targetTier: null },
           { targetTier: customer.loyaltyTier },
         ];
       }
     }
 
-    const campaigns = await this.discountCampaignModel.findAll({
-      where: whereCondition,
-      include: [
-        {
-          model: CampaignProduct,
-          as: 'products',
-        },
-        {
-          model: CampaignParticipation,
-          as: 'participations',
-        },
-      ],
-      order: [['discountValue', 'DESC']],
-    });
+    const campaigns = await this.discountCampaignModel
+      .find(filter)
+      .sort({ discountValue: -1 })
+      .lean();
+
+    // Get products and participations for each campaign
+    const campaignsWithRelations = await Promise.all(
+      campaigns.map(async (campaign) => {
+        const products = await this.campaignProductModel
+          .find({ campaignId: campaign._id })
+          .lean();
+        const participations = await this.campaignParticipationModel
+          .find({ campaignId: campaign._id })
+          .lean();
+        return { ...campaign, products, participations };
+      })
+    );
 
     if (productIds && productIds.length > 0) {
-      return campaigns.filter(campaign =>
+      const productObjectIds = productIds.map(id => new Types.ObjectId(id));
+      return campaignsWithRelations.filter(campaign =>
         campaign.products.length === 0 ||
-        campaign.products.some(cp => productIds.includes(cp.productId))
+        campaign.products.some(cp => productObjectIds.some(id => id.equals(cp.productId)))
       );
     }
 
-    return campaigns;
+    return campaignsWithRelations;
   }
 
-  async getCampaignById(id: number) {
-    const campaign = await this.discountCampaignModel.findByPk(id, {
-      include: [
-        {
-          model: CampaignProduct,
-          as: 'products',
-        },
-        {
-          model: CampaignParticipation,
-          as: 'participations',
-          include: [
-            {
-              model: Customer,
-              attributes: ['id', 'name', 'phone'],
-            },
-          ],
-        },
-      ],
-    });
+  async getCampaignById(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Campaign with ID ${id} not found`);
+    }
+
+    const campaign = await this.discountCampaignModel.findById(id).lean();
 
     if (!campaign) {
       throw new NotFoundException(`Campaign with ID ${id} not found`);
     }
 
-    return campaign;
+    const products = await this.campaignProductModel
+      .find({ campaignId: campaign._id })
+      .lean();
+
+    const participations = await this.campaignParticipationModel
+      .find({ campaignId: campaign._id })
+      .populate('customerId', 'name phone')
+      .lean();
+
+    return { ...campaign, products, participations };
   }
 
-  async updateCampaign(id: number, data: Partial<CreateCampaignDto>) {
-    await this.getCampaignById(id);
+  async updateCampaign(id: string, data: Partial<CreateCampaignDto>) {
+    await this.getCampaignById(id); // Check if exists
 
     const updateData: any = {};
 
@@ -183,51 +197,42 @@ export class CampaignsService {
     if (data.usageLimit !== undefined) updateData.usageLimit = data.usageLimit;
     if (data.targetTier !== undefined) updateData.targetTier = data.targetTier;
 
-    await this.discountCampaignModel.update(
-      updateData,
-      {
-        where: { id },
-      }
-    );
+    await this.discountCampaignModel.findByIdAndUpdate(id, updateData);
 
     return this.getCampaignById(id);
   }
 
-  async activateCampaign(id: number) {
+  async activateCampaign(id: string) {
     await this.getCampaignById(id); // Check if exists
 
-    const [, updatedRows] = await this.discountCampaignModel.update(
+    const updated = await this.discountCampaignModel.findByIdAndUpdate(
+      id,
       {
         status: CampaignStatus.ACTIVE,
         isActive: true,
       },
-      {
-        where: { id },
-        returning: true,
-      }
+      { new: true }
     );
 
-    return updatedRows[0];
+    return updated;
   }
 
-  async pauseCampaign(id: number) {
+  async pauseCampaign(id: string) {
     await this.getCampaignById(id);
 
-    const [, updatedRows] = await this.discountCampaignModel.update(
+    const updated = await this.discountCampaignModel.findByIdAndUpdate(
+      id,
       {
         status: CampaignStatus.PAUSED,
         isActive: false,
       },
-      {
-        where: { id },
-        returning: true,
-      }
+      { new: true }
     );
 
-    return updatedRows[0];
+    return updated;
   }
 
-  async applyCampaignDiscount(id: number, customerId: number, subtotal: number) {
+  async applyCampaignDiscount(id: string, customerId: string, subtotal: number) {
     const campaign = await this.getCampaignById(id);
 
     const now = new Date();
@@ -235,7 +240,7 @@ export class CampaignsService {
       throw new BadRequestException('Campaign is not active');
     }
 
-    if (now < campaign.startDate || now > campaign.endDate) {
+    if (now < new Date(campaign.startDate) || now > new Date(campaign.endDate)) {
       throw new BadRequestException('Campaign is not currently running');
     }
 
@@ -244,9 +249,7 @@ export class CampaignsService {
     }
 
     if (campaign.targetTier) {
-      const customer = await this.customerModel.findByPk(customerId, {
-        attributes: ['loyaltyTier'],
-      });
+      const customer = await this.customerModel.findById(customerId).lean();
 
       if (!customer || customer.loyaltyTier !== campaign.targetTier) {
         throw new BadRequestException('Customer not eligible for this campaign');
@@ -257,7 +260,7 @@ export class CampaignsService {
       throw new BadRequestException('Campaign usage limit reached');
     }
 
-    let discountAmount;
+    let discountAmount: number;
     if (campaign.discountType === DiscountType.PERCENTAGE) {
       discountAmount = (subtotal * Number(campaign.discountValue)) / 100;
     } else {
@@ -268,28 +271,30 @@ export class CampaignsService {
       discountAmount = Number(campaign.maxDiscount);
     }
 
-    // Check if participation already exists
-    await this.campaignParticipationModel.findOrCreate({
-      where: {
-        campaignId: id,
-        customerId,
-      },
-      defaults: {
-        campaignId: id,
-        customerId,
-      },
+    // Check if participation already exists, if not create it
+    const existingParticipation = await this.campaignParticipationModel.findOne({
+      campaignId: new Types.ObjectId(id),
+      customerId: new Types.ObjectId(customerId),
     });
 
+    if (!existingParticipation) {
+      const participation = new this.campaignParticipationModel({
+        campaignId: new Types.ObjectId(id),
+        customerId: new Types.ObjectId(customerId),
+      });
+      await participation.save();
+    }
+
     // Increment campaign usage count
-    await this.discountCampaignModel.increment('usageCount', {
-      where: { id },
+    await this.discountCampaignModel.findByIdAndUpdate(id, {
+      $inc: { usageCount: 1 },
     });
 
     return {
       discountAmount,
       finalAmount: subtotal - discountAmount,
       campaign: {
-        id: campaign.id,
+        id: campaign._id,
         name: campaign.name,
         type: campaign.type,
         discountType: campaign.discountType,
@@ -298,31 +303,26 @@ export class CampaignsService {
     };
   }
 
-  async getCampaignAnalytics(id: number) {
+  async getCampaignAnalytics(id: string) {
     const campaign = await this.getCampaignById(id);
 
-    const participations = await this.campaignParticipationModel.findAll({
-      where: { campaignId: id },
-      include: [
-        {
-          model: Customer,
-          attributes: ['loyaltyTier'],
-        },
-      ],
-    });
+    const participations = await this.campaignParticipationModel
+      .find({ campaignId: new Types.ObjectId(id) })
+      .populate('customerId', 'loyaltyTier')
+      .lean();
 
-    const sales = await this.saleModel.findAll({
-      where: { discountCampaignId: id },
-      attributes: ['totalAmount', 'discountAmount', 'createdAt'],
-    });
+    const sales = await this.saleModel
+      .find({ discountCampaignId: new Types.ObjectId(id) })
+      .select('totalAmount discountAmount createdAt')
+      .lean();
 
     const totalRevenue = sales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
     const totalDiscountGiven = sales.reduce((sum, sale) => sum + Number(sale.discountAmount), 0);
-    const uniqueCustomers = new Set(participations.map(p => p.customerId)).size;
+    const uniqueCustomers = new Set(participations.map(p => p.customerId?.toString())).size;
 
     return {
       campaign: {
-        id: campaign.id,
+        id: campaign._id,
         name: campaign.name,
         status: campaign.status,
         usageCount: campaign.usageCount,
@@ -341,10 +341,8 @@ export class CampaignsService {
     };
   }
 
-  async getRecommendedCampaigns(customerId: number) {
-    const customer = await this.customerModel.findByPk(customerId, {
-      attributes: ['loyaltyTier', 'totalSpent', 'visitCount'],
-    });
+  async getRecommendedCampaigns(customerId: string) {
+    const customer = await this.customerModel.findById(customerId).lean();
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
@@ -352,65 +350,59 @@ export class CampaignsService {
 
     const now = new Date();
 
-    return this.discountCampaignModel.findAll({
-      where: {
+    const campaigns = await this.discountCampaignModel
+      .find({
         status: CampaignStatus.ACTIVE,
         isActive: true,
-        startDate: { [Op.lte]: now },
-        endDate: { [Op.gte]: now },
-        [Op.or]: [
+        startDate: { $lte: now },
+        endDate: { $gte: now },
+        $or: [
           { targetTier: null },
           { targetTier: customer.loyaltyTier },
         ],
-      },
-      include: [
-        {
-          model: CampaignProduct,
-          as: 'products',
-        },
-      ],
-      order: [['discountValue', 'DESC']],
-      limit: 10,
-    });
+      })
+      .sort({ discountValue: -1 })
+      .limit(10)
+      .lean();
+
+    // Get products for each campaign
+    const campaignsWithProducts = await Promise.all(
+      campaigns.map(async (campaign) => {
+        const products = await this.campaignProductModel
+          .find({ campaignId: campaign._id })
+          .lean();
+        return { ...campaign, products };
+      })
+    );
+
+    return campaignsWithProducts;
   }
 
-  async deleteCampaign(id: number) {
+  async deleteCampaign(id: string) {
     await this.getCampaignById(id); // Check if exists
 
     // Delete related records first
-    await this.campaignProductModel.destroy({
-      where: { campaignId: id },
-    });
-
-    await this.campaignParticipationModel.destroy({
-      where: { campaignId: id },
-    });
-
-    await this.discountCampaignModel.destroy({
-      where: { id },
-    });
+    await this.campaignProductModel.deleteMany({ campaignId: new Types.ObjectId(id) });
+    await this.campaignParticipationModel.deleteMany({ campaignId: new Types.ObjectId(id) });
+    await this.discountCampaignModel.findByIdAndDelete(id);
 
     return { message: 'Campaign deleted successfully' };
   }
 
   async getCampaignStats() {
-    const totalCampaigns = await this.discountCampaignModel.count();
-    const activeCampaigns = await this.discountCampaignModel.count({
-      where: { status: CampaignStatus.ACTIVE },
+    const totalCampaigns = await this.discountCampaignModel.countDocuments();
+    const activeCampaigns = await this.discountCampaignModel.countDocuments({
+      status: CampaignStatus.ACTIVE,
     });
 
     const now = new Date();
-    const expiredCampaigns = await this.discountCampaignModel.count({
-      where: {
-        endDate: { [Op.lt]: now },
-      },
+    const expiredCampaigns = await this.discountCampaignModel.countDocuments({
+      endDate: { $lt: now },
     });
 
-    const totalParticipations = await this.campaignParticipationModel.count();
-    const totalSales = await this.saleModel.count({
-      where: {
-        discountCampaignId: { [Op.not]: null },
-      },
+    const totalParticipations = await this.campaignParticipationModel.countDocuments();
+    const totalSales = await this.saleModel.countDocuments({
+      discountCampaignId: { $ne: null },
     });
 
     return {
@@ -425,15 +417,15 @@ export class CampaignsService {
 
   private groupParticipationsByTier(participations: any[]) {
     return participations.reduce((acc, participation) => {
-      const tier = participation.customer?.loyaltyTier || 'UNKNOWN';
+      const tier = (participation.customerId as any)?.loyaltyTier || 'UNKNOWN';
       acc[tier] = (acc[tier] || 0) + 1;
       return acc;
-    }, {});
+    }, {} as Record<string, number>);
   }
 
   private groupSalesByDay(sales: any[]) {
     return sales.reduce((acc, sale) => {
-      const date = sale.createdAt.toISOString().split('T')[0];
+      const date = new Date(sale.createdAt).toISOString().split('T')[0];
       if (!acc[date]) {
         acc[date] = { count: 0, revenue: 0, discountGiven: 0 };
       }
@@ -441,7 +433,7 @@ export class CampaignsService {
       acc[date].revenue += Number(sale.totalAmount);
       acc[date].discountGiven += Number(sale.discountAmount);
       return acc;
-    }, {});
+    }, {} as Record<string, { count: number; revenue: number; discountGiven: number }>);
   }
 
   async createAutomaticCampaigns() {

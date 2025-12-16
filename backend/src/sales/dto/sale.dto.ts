@@ -11,12 +11,12 @@ export enum PaymentMethod {
 
 export class CreateSaleItemDto {
   @ApiProperty()
-  @IsInt()
-  @Type(() => Number)
-  productId: number;
+  @IsString()
+  @Transform(({ value }) => String(value))
+  productId: string;
 
   @ApiProperty()
-  @IsInt()
+  @IsNumber()
   @Min(1)
   @Type(() => Number)
   quantity: number;
@@ -51,9 +51,15 @@ export class CreateSaleItemDto {
 export class CreateSaleDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  customerId?: number;
+  @IsString()
+  @Transform(({ value }) => value ? String(value) : undefined)
+  customerId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => value ? String(value) : undefined)
+  discountCodeId?: string;
 
   @ApiProperty({ type: [CreateSaleItemDto] })
   @IsArray()

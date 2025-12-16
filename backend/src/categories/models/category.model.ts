@@ -1,41 +1,38 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Unique, CreatedAt, UpdatedAt, HasMany, Default } from 'sequelize-typescript';
-import { Product } from '../../products/models/product.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
-@Table({
-  tableName: 'categories',
+export type CategoryDocument = Category & Document;
+
+@Schema({
   timestamps: true,
-  underscored: true,
+  collection: 'categories',
 })
-export class Category extends Model<Category> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export class Category {
+  _id: Types.ObjectId;
 
-  @Unique
-  @AllowNull(false)
-  @Column(DataType.STRING)
+  @Prop({ required: true, unique: true })
   name: string;
 
-  @Column(DataType.TEXT)
+  @Prop()
   description: string;
 
-  @Default('#6B7280')
-  @Column(DataType.STRING)
+  @Prop({ default: '#6B7280' })
   color: string;
 
-  @Default(true)
-  @Column({ field: 'is_active' })
+  @Prop({ default: true })
   isActive: boolean;
 
-  @CreatedAt
-  @Column({ field: 'created_at' })
   createdAt: Date;
-
-  @UpdatedAt
-  @Column({ field: 'updated_at' })
   updatedAt: Date;
-
-  @HasMany(() => Product)
-  products: Product[];
 }
+
+export const CategorySchema = SchemaFactory.createForClass(Category);
+
+CategorySchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

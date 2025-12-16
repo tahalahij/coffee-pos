@@ -1,8 +1,6 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, CreatedAt, UpdatedAt, HasMany, Default } from 'sequelize-typescript';
-import { Sale } from '../../sales/models/sale.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 import { LoyaltyTier } from '../../customers/models/customer.model';
-import { CampaignProduct } from './campaign-product.model';
-import { CampaignParticipation } from './campaign-participation.model';
 
 export enum CampaignType {
   PERCENTAGE_DISCOUNT = 'PERCENTAGE_DISCOUNT',
@@ -28,82 +26,78 @@ export enum DiscountType {
   FIXED_AMOUNT = 'FIXED_AMOUNT'
 }
 
-@Table({
-  tableName: 'campaigns',
-  timestamps: true,
-  underscored: true,
-})
-export class Campaign extends Model<Campaign> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export type CampaignDocument = Campaign & Document;
 
-  @AllowNull(false)
-  @Column(DataType.STRING)
+@Schema({
+  timestamps: true,
+  collection: 'campaigns',
+})
+export class Campaign {
+  _id: Types.ObjectId;
+
+  @Prop({ required: true })
   name: string;
 
-  @Column(DataType.TEXT)
+  @Prop()
   description: string;
 
-  @AllowNull(false)
-  @Column(DataType.ENUM(...Object.values(CampaignType)))
+  @Prop({ required: true, enum: CampaignType })
   type: CampaignType;
 
-  @Default(CampaignStatus.DRAFT)
-  @Column(DataType.ENUM(...Object.values(CampaignStatus)))
+  @Prop({ enum: CampaignStatus, default: CampaignStatus.DRAFT })
   status: CampaignStatus;
 
-  @AllowNull(false)
-  @Column({ field: 'start_date' })
+  @Prop({ required: true })
   startDate: Date;
 
-  @AllowNull(false)
-  @Column({ field: 'end_date' })
+  @Prop({ required: true })
   endDate: Date;
 
-  @AllowNull(false)
-  @Column({ field: 'discount_type' })
+  @Prop({ required: true, enum: DiscountType })
   discountType: DiscountType;
 
-  @AllowNull(false)
-  @Column({ field: 'discount_value' })
+  @Prop({ required: true, type: Number })
   discountValue: number;
 
-  @Column({ field: 'min_purchase' })
+  @Prop({ type: Number })
   minPurchase: number;
 
-  @Column({ field: 'max_discount' })
+  @Prop({ type: Number })
   maxDiscount: number;
 
-  @Column({ field: 'usage_limit' })
+  @Prop()
   usageLimit: number;
 
-  @Default(0)
-  @Column({ field: 'usage_count' })
+  @Prop({ default: 0 })
   usageCount: number;
 
-  @Column({ field: 'target_tier' })
+  @Prop({ enum: LoyaltyTier })
   targetTier: LoyaltyTier;
 
-  @Default(true)
-  @Column({ field: 'is_active' })
+  @Prop({ default: true })
   isActive: boolean;
 
-  @CreatedAt
-  @Column({ field: 'created_at' })
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Product' }], default: [] })
+  productIds: Types.ObjectId[];
+
   createdAt: Date;
-
-  @UpdatedAt
-  @Column({ field: 'updated_at' })
   updatedAt: Date;
-
-  @HasMany(() => Sale)
-  sales: Sale[];
-
-  @HasMany(() => CampaignProduct)
-  campaignProducts: CampaignProduct[];
-
-  @HasMany(() => CampaignParticipation)
-  campaignParticipations: CampaignParticipation[];
 }
+
+export const CampaignSchema = SchemaFactory.createForClass(Campaign);
+
+// Virtual populate for products
+CampaignSchema.virtual('products', {
+  ref: 'Product',
+  localField: 'productIds',
+  foreignField: '_id',
+});
+
+CampaignSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

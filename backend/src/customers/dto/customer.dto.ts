@@ -1,5 +1,11 @@
-import { IsString, IsOptional, IsEmail, IsDateString, Matches, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsDateString, Matches, IsNotEmpty, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export enum Gender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+  OTHER = 'OTHER'
+}
 
 export class CreateCustomerDto {
   @ApiProperty()
@@ -14,6 +20,11 @@ export class CreateCustomerDto {
     message: 'شماره تلفن باید بین ۱۰ تا ۱۵ رقم باشد و ممکن است با + شروع شود'
   })
   phone: string;
+
+  @ApiPropertyOptional({ enum: Gender })
+  @IsOptional()
+  @IsEnum(Gender, { message: 'جنسیت باید یکی از مقادیر MALE، FEMALE یا OTHER باشد' })
+  sex?: Gender;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -46,6 +57,11 @@ export class UpdateCustomerDto {
     message: 'شماره تلفن باید بین ۱۰ تا ۱۵ رقم باشد و ممکن است با + شروع شود'
   })
   phone?: string;
+
+  @ApiPropertyOptional({ enum: Gender })
+  @IsOptional()
+  @IsEnum(Gender, { message: 'جنسیت باید یکی از مقادیر MALE، FEMALE یا OTHER باشد' })
+  sex?: Gender;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -1,39 +1,51 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, CreatedAt, ForeignKey, BelongsTo, Default } from 'sequelize-typescript';
-import { Campaign } from './campaign.model';
-import { Customer } from '../../customers/models/customer.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
-@Table({
-  tableName: 'campaign_participations',
+export type CampaignParticipationDocument = CampaignParticipation & Document;
+
+@Schema({
   timestamps: true,
-  underscored: true,
+  collection: 'campaign_participations',
 })
-export class CampaignParticipation extends Model<CampaignParticipation> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export class CampaignParticipation {
+  _id: Types.ObjectId;
 
-  @ForeignKey(() => Campaign)
-  @AllowNull(false)
-  @Column({ field: 'campaign_id' })
-  campaignId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Campaign', required: true })
+  campaignId: Types.ObjectId;
 
-  @ForeignKey(() => Customer)
-  @AllowNull(false)
-  @Column({ field: 'customer_id' })
-  customerId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
+  customerId: Types.ObjectId;
 
-  @Default(0)
-  @Column({ field: 'usage_count' })
+  @Prop({ default: 0 })
   usageCount: number;
 
-  @CreatedAt
-  @Column({ field: 'created_at' })
   createdAt: Date;
-
-  @BelongsTo(() => Campaign)
-  campaign: Campaign;
-
-  @BelongsTo(() => Customer)
-  customer: Customer;
+  updatedAt: Date;
 }
+
+export const CampaignParticipationSchema = SchemaFactory.createForClass(CampaignParticipation);
+
+// Virtual populate for campaign
+CampaignParticipationSchema.virtual('campaign', {
+  ref: 'Campaign',
+  localField: 'campaignId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+// Virtual populate for customer
+CampaignParticipationSchema.virtual('customer', {
+  ref: 'Customer',
+  localField: 'customerId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+CampaignParticipationSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

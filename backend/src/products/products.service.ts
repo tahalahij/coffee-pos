@@ -1,17 +1,17 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Product } from './models/product.model';
-import { Category } from '../categories/models/category.model';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { Product, ProductDocument } from './models/product.model';
+import { Category, CategoryDocument } from '../categories/models/category.model';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
-import { Op } from 'sequelize';
 
 @Injectable()
 export class ProductsService {
   constructor(
-    @InjectModel(Product)
-    private productModel: typeof Product,
-    @InjectModel(Category)
-    private categoryModel: typeof Category,
+    @InjectModel(Product.name)
+    private productModel: Model<ProductDocument>,
+    @InjectModel(Category.name)
+    private categoryModel: Model<CategoryDocument>,
   ) {}
 
   async create(createProductDto: CreateProductDto) {
@@ -21,7 +21,7 @@ export class ProductsService {
     }
 
     // Check if category exists
-    const category = await this.categoryModel.findByPk(createProductDto.categoryId);
+    const category = await this.categoryModel.findById(createProductDto.categoryId);
 
     if (!category) {
       throw new BadRequestException('دسته‌بندی یافت نشد');
@@ -29,7 +29,7 @@ export class ProductsService {
 
     // Check if product name is unique
     const existingProduct = await this.productModel.findOne({
-      where: { name: createProductDto.name },
+      name: createProductDto.name,
     });
 
     if (existingProduct) {
@@ -39,7 +39,7 @@ export class ProductsService {
     // Check if SKU is unique (if provided)
     if (createProductDto.sku) {
       const existingSku = await this.productModel.findOne({
-        where: { sku: createProductDto.sku },
+        sku: createProductDto.sku,
       });
 
       if (existingSku) {
@@ -47,44 +47,62 @@ export class ProductsService {
       }
     }
 
-    const product = await this.productModel.create(createProductDto);
-    return this.productModel.findByPk(product.id, {
-      include: [{ model: Category, as: 'category' }],
+    const product = new this.productModel({
+      ...createProductDto,
+      categoryId: new Types.ObjectId(createProductDto.categoryId),
     });
+    await product.save();
+    
+    const savedProduct = await this.productModel.findById(product._id).lean();
+    const productCategory = await this.categoryModel.findById(savedProduct.categoryId).lean();
+    return { ...savedProduct, id: savedProduct._id, category: productCategory };
   }
 
-  async findAll(categoryId?: number, isAvailable?: boolean) {
-    const where: any = {};
+  async findAll(categoryId?: string, isAvailable?: boolean) {
+    const filter: any = {};
 
-    if (categoryId) {
-      where.categoryId = categoryId;
+    if (categoryId && Types.ObjectId.isValid(categoryId)) {
+      filter.categoryId = new Types.ObjectId(categoryId);
     }
 
     if (typeof isAvailable === 'boolean') {
-      where.isAvailable = isAvailable;
+      filter.isAvailable = isAvailable;
     }
 
-    return this.productModel.findAll({
-      where,
-      include: [{ model: Category, as: 'category' }],
-      order: [['name', 'ASC']],
-    });
+    const products = await this.productModel.find(filter).sort({ name: 1 }).lean();
+    
+    // Get categories for products
+    const productsWithCategory = await Promise.all(
+      products.map(async (product) => {
+        const category = await this.categoryModel.findById(product.categoryId).lean();
+        return { ...product, id: product._id, category };
+      })
+    );
+    
+    return productsWithCategory;
   }
 
-  async findOne(id: number) {
-    const product = await this.productModel.findByPk(id, {
-      include: [{ model: Category, as: 'category' }],
-    });
+  async findOne(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
+    }
+
+    const product = await this.productModel.findById(id).lean();
 
     if (!product) {
       throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
     }
 
-    return product;
+    const category = await this.categoryModel.findById(product.categoryId).lean();
+    return { ...product, id: product._id, category };
   }
 
-  async update(id: number, updateProductDto: UpdateProductDto) {
-    const product = await this.productModel.findByPk(id);
+  async update(id: string, updateProductDto: UpdateProductDto) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
+    }
+
+    const product = await this.productModel.findById(id);
 
     if (!product) {
       throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
@@ -92,7 +110,7 @@ export class ProductsService {
 
     // Check if category exists (if categoryId is being updated)
     if (updateProductDto.categoryId) {
-      const category = await this.categoryModel.findByPk(updateProductDto.categoryId);
+      const category = await this.categoryModel.findById(updateProductDto.categoryId);
       if (!category) {
         throw new BadRequestException('دسته‌بندی یافت نشد');
       }
@@ -101,10 +119,8 @@ export class ProductsService {
     // Check if product name is unique (if name is being updated)
     if (updateProductDto.name && updateProductDto.name !== product.name) {
       const existingProduct = await this.productModel.findOne({
-        where: {
-          name: updateProductDto.name,
-          id: { [Op.ne]: id }
-        },
+        name: updateProductDto.name,
+        _id: { $ne: id }
       });
 
       if (existingProduct) {
@@ -115,10 +131,8 @@ export class ProductsService {
     // Check if SKU is unique (if SKU is being updated)
     if (updateProductDto.sku && updateProductDto.sku !== product.sku) {
       const existingSku = await this.productModel.findOne({
-        where: {
-          sku: updateProductDto.sku,
-          id: { [Op.ne]: id }
-        },
+        sku: updateProductDto.sku,
+        _id: { $ne: id }
       });
 
       if (existingSku) {
@@ -126,25 +140,40 @@ export class ProductsService {
       }
     }
 
-    await product.update(updateProductDto);
-    return this.productModel.findByPk(id, {
-      include: [{ model: Category, as: 'category' }],
-    });
+    const updateData: any = { ...updateProductDto };
+    if (updateProductDto.categoryId) {
+      updateData.categoryId = new Types.ObjectId(updateProductDto.categoryId);
+    }
+    
+    Object.assign(product, updateData);
+    await product.save();
+    
+    const updatedProduct = await this.productModel.findById(id).lean();
+    const category = await this.categoryModel.findById(updatedProduct.categoryId).lean();
+    return { ...updatedProduct, id: updatedProduct._id, category };
   }
 
-  async remove(id: number) {
-    const product = await this.productModel.findByPk(id);
+  async remove(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
+    }
+
+    const product = await this.productModel.findById(id);
 
     if (!product) {
       throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
     }
 
-    await product.destroy();
+    await this.productModel.findByIdAndDelete(id);
     return { message: 'محصول با موفقیت حذف شد' };
   }
 
-  async updateStock(id: number, quantity: number) {
-    const product = await this.productModel.findByPk(id);
+  async updateStock(id: string, quantity: number) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
+    }
+
+    const product = await this.productModel.findById(id);
 
     if (!product) {
       throw new NotFoundException(`محصول با شناسه ${id} یافت نشد`);
@@ -155,18 +184,24 @@ export class ProductsService {
       throw new BadRequestException('موجودی کافی نیست');
     }
 
-    await product.update({ stock: newStock });
-    return product;
+    product.stock = newStock;
+    return product.save();
   }
 
   async getLowStockProducts() {
-    return this.productModel.findAll({
-      where: {
-        stock: { [Op.lte]: this.productModel.sequelize.col('min_stock_level') },
-        isAvailable: true,
-      },
-      include: [{ model: Category, as: 'category' }],
-      order: [['stock', 'ASC']],
-    });
+    const products = await this.productModel.find({
+      isAvailable: true,
+      $expr: { $lte: ['$stock', '$minStockLevel'] }
+    }).sort({ stock: 1 }).lean();
+    
+    const productsWithCategory = await Promise.all(
+      products.map(async (product) => {
+        const category = await this.categoryModel.findById(product.categoryId).lean();
+        return { ...product, id: product._id, category };
+      })
+    );
+    
+    return productsWithCategory;
   }
 }
+

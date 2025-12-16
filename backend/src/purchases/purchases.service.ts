@@ -1,21 +1,21 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Purchase } from './models/purchase.model';
-import { PurchaseItem } from './models/purchase-item.model';
-import { Product } from '../products/models/product.model';
-import { Category } from '../categories/models/category.model';
-import { CreatePurchaseDto, UpdatePurchaseDto, PurchaseStatus } from './dto/purchase.dto';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { Purchase, PurchaseDocument, PurchaseStatus } from './models/purchase.model';
+import { Product, ProductDocument } from '../products/models/product.model';
+import { Category, CategoryDocument } from '../categories/models/category.model';
+import { CreatePurchaseDto, UpdatePurchaseDto, PurchaseStatus as DtoPurchaseStatus } from './dto/purchase.dto';
 import { ProductsService } from '../products/products.service';
 
 @Injectable()
 export class PurchasesService {
   constructor(
-    @InjectModel(Purchase)
-    private purchaseModel: typeof Purchase,
-    @InjectModel(PurchaseItem)
-    private purchaseItemModel: typeof PurchaseItem,
-    @InjectModel(Product)
-    private productModel: typeof Product,
+    @InjectModel(Purchase.name)
+    private purchaseModel: Model<PurchaseDocument>,
+    @InjectModel(Product.name)
+    private productModel: Model<ProductDocument>,
+    @InjectModel(Category.name)
+    private categoryModel: Model<CategoryDocument>,
     private productsService: ProductsService,
   ) {}
 
@@ -31,7 +31,7 @@ export class PurchasesService {
 
     // Validate all products exist
     for (const item of createPurchaseDto.items) {
-      await this.productsService.findOne(parseInt(item.productId));
+      await this.productsService.findOne(String(item.productId));
     }
 
     // Calculate total amount from items
@@ -39,120 +39,136 @@ export class PurchasesService {
       return sum + (item.unitCost * item.quantity);
     }, 0);
 
-    // Create purchase with items in a transaction
-    const purchase = await this.purchaseModel.sequelize.transaction(async (transaction) => {
-      // Create the purchase
-      const newPurchase = await this.purchaseModel.create({
-        supplierName: createPurchaseDto.supplierName,
-        supplierContact: createPurchaseDto.supplierContact,
-        totalAmount: calculatedTotal,
-        status: createPurchaseDto.status || PurchaseStatus.PENDING,
-        notes: createPurchaseDto.notes,
-      }, { transaction });
-
-      // Create purchase items
-      for (const item of createPurchaseDto.items) {
-        const totalCost = item.unitCost * item.quantity;
-
-        await this.purchaseItemModel.create({
-          purchaseId: newPurchase.id,
-          productId: parseInt(item.productId),
-          quantity: item.quantity,
-          unitCost: item.unitCost,
-          totalCost,
-        }, { transaction });
-      }
-
-      return newPurchase;
+    // Prepare purchase items
+    const purchaseItems = createPurchaseDto.items.map(item => {
+      const totalCost = item.unitCost * item.quantity;
+      return {
+        productId: new Types.ObjectId(String(item.productId)),
+        quantity: item.quantity,
+        unitCost: item.unitCost,
+        totalCost,
+      };
     });
 
+    // Create the purchase
+    const newPurchase = new this.purchaseModel({
+      supplierName: createPurchaseDto.supplierName,
+      supplierContact: createPurchaseDto.supplierContact,
+      totalAmount: calculatedTotal,
+      status: createPurchaseDto.status || DtoPurchaseStatus.PENDING,
+      notes: createPurchaseDto.notes,
+      items: purchaseItems,
+    });
+
+    await newPurchase.save();
+
     // Return purchase with items
-    return this.findOne(purchase.id);
+    return this.findOne(newPurchase._id.toString());
   }
 
   async findAll() {
-    return this.purchaseModel.findAll({
-      include: [
-        {
-          model: PurchaseItem,
-          as: 'items',
-          include: [
-            {
-              model: Product,
-              as: 'product',
-              attributes: ['id', 'name'],
-              include: [
-                {
-                  model: Category,
-                  as: 'category',
-                  attributes: ['name'],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-      order: [['createdAt', 'DESC']],
-    });
+    const purchases = await this.purchaseModel.find().sort({ createdAt: -1 }).lean();
+
+    // Populate items with product info
+    const populatedPurchases = await Promise.all(
+      purchases.map(async (purchase) => {
+        const itemsWithProducts = await Promise.all(
+          (purchase.items || []).map(async (item) => {
+            const product = await this.productModel.findById(item.productId).select('_id name categoryId').lean();
+            let category = null;
+            if (product?.categoryId) {
+              category = await this.categoryModel.findById(product.categoryId).select('name').lean();
+            }
+            return {
+              ...item,
+              id: item._id,
+              product: product ? { ...product, id: product._id, category } : null,
+            };
+          })
+        );
+
+        return {
+          ...purchase,
+          id: purchase._id,
+          items: itemsWithProducts,
+        };
+      })
+    );
+
+    return populatedPurchases;
   }
 
-  async findOne(id: number) {
-    const purchase = await this.purchaseModel.findByPk(id, {
-      include: [
-        {
-          model: PurchaseItem,
-          as: 'items',
-          include: [
-            {
-              model: Product,
-              as: 'product',
-              attributes: ['id', 'name'],
-              include: [
-                {
-                  model: Category,
-                  as: 'category',
-                  attributes: ['name'],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    });
+  async findOne(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Purchase with ID ${id} not found`);
+    }
+
+    const purchase = await this.purchaseModel.findById(id).lean();
 
     if (!purchase) {
       throw new NotFoundException(`Purchase with ID ${id} not found`);
     }
 
-    return purchase;
+    // Populate items with product info
+    const itemsWithProducts = await Promise.all(
+      (purchase.items || []).map(async (item) => {
+        const product = await this.productModel.findById(item.productId).select('_id name categoryId').lean();
+        let category = null;
+        if (product?.categoryId) {
+          category = await this.categoryModel.findById(product.categoryId).select('name').lean();
+        }
+        return {
+          ...item,
+          id: item._id,
+          product: product ? { ...product, id: product._id, category } : null,
+        };
+      })
+    );
+
+    return {
+      ...purchase,
+      id: purchase._id,
+      items: itemsWithProducts,
+    };
   }
 
-  async update(id: number, updatePurchaseDto: UpdatePurchaseDto) {
-    const purchase = await this.purchaseModel.findByPk(id);
+  async update(id: string, updatePurchaseDto: UpdatePurchaseDto) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Purchase with ID ${id} not found`);
+    }
+
+    const purchase = await this.purchaseModel.findById(id);
 
     if (!purchase) {
       throw new NotFoundException(`Purchase with ID ${id} not found`);
     }
 
-    await purchase.update(updatePurchaseDto);
+    Object.assign(purchase, updatePurchaseDto);
+    await purchase.save();
     return this.findOne(id);
   }
 
-  async remove(id: number) {
-    const purchase = await this.purchaseModel.findByPk(id);
+  async remove(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Purchase with ID ${id} not found`);
+    }
+
+    const purchase = await this.purchaseModel.findById(id);
 
     if (!purchase) {
       throw new NotFoundException(`Purchase with ID ${id} not found`);
     }
 
-    await purchase.destroy();
+    await this.purchaseModel.findByIdAndDelete(id);
     return { message: 'Purchase deleted successfully' };
   }
 
-  async receive(id: number) {
-    const purchase = await this.purchaseModel.findByPk(id, {
-      include: [{ model: PurchaseItem, as: 'items' }],
-    });
+  async receive(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Purchase with ID ${id} not found`);
+    }
+
+    const purchase = await this.purchaseModel.findById(id);
 
     if (!purchase) {
       throw new NotFoundException(`Purchase with ID ${id} not found`);
@@ -162,33 +178,32 @@ export class PurchasesService {
       throw new BadRequestException('Only pending purchases can be marked as received');
     }
 
-    // Update purchase status and stock in transaction
-    await this.purchaseModel.sequelize.transaction(async (transaction) => {
-      // Update purchase status
-      await purchase.update({
-        status: 'RECEIVED' as any,
-        receivedAt: new Date() as any,
-      }, { transaction });
+    // Update purchase status
+    purchase.status = PurchaseStatus.RECEIVED;
+    purchase.receivedAt = new Date();
+    await purchase.save();
 
-      // Update product stock
-      for (const item of purchase.items) {
-        await this.productModel.increment('stock', {
-          by: item.quantity,
-          where: { id: item.productId },
-          transaction,
-        });
-      }
-    });
+    // Update product stock
+    for (const item of purchase.items) {
+      await this.productModel.findByIdAndUpdate(
+        item.productId,
+        { $inc: { stock: item.quantity } }
+      );
+    }
 
     return this.findOne(id);
   }
 
   async markAsReceived(id: string) {
-    return this.receive(parseInt(id));
+    return this.receive(id);
   }
 
   async cancel(id: string, reason?: string) {
-    const purchase = await this.purchaseModel.findByPk(parseInt(id));
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Purchase with ID ${id} not found`);
+    }
+
+    const purchase = await this.purchaseModel.findById(id);
 
     if (!purchase) {
       throw new NotFoundException(`Purchase with ID ${id} not found`);
@@ -198,11 +213,12 @@ export class PurchasesService {
       throw new BadRequestException('Only pending purchases can be cancelled');
     }
 
-    await purchase.update({
-      status: 'CANCELLED' as any,
-      notes: reason ? `${purchase.notes || ''}\nCancellation reason: ${reason}`.trim() : purchase.notes,
-    });
+    purchase.status = PurchaseStatus.CANCELLED;
+    if (reason) {
+      purchase.notes = `${purchase.notes || ''}\nCancellation reason: ${reason}`.trim();
+    }
+    await purchase.save();
 
-    return this.findOne(parseInt(id));
+    return this.findOne(id);
   }
 }

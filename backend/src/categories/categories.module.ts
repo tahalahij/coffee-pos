@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
-import { SequelizeModule } from '@nestjs/sequelize';
-import { Category } from './models/category.model';
+import { MongooseModule } from '@nestjs/mongoose';
+import { Category, CategorySchema } from './models/category.model';
+import { Product, ProductSchema } from '../products/models/product.model';
 import { CategoriesService } from './categories.service';
 import { CategoriesController } from './categories.controller';
 
 @Module({
-  imports: [SequelizeModule.forFeature([Category])],
+  imports: [MongooseModule.forFeature([
+    { name: Category.name, schema: CategorySchema },
+    { name: Product.name, schema: ProductSchema },
+  ])],
   controllers: [CategoriesController],
   providers: [CategoriesService],
   exports: [CategoriesService],

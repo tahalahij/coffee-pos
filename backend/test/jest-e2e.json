@@ -10,7 +10,11 @@
     "**/*.(t|j)s"
   ],
   "coverageDirectory": "../coverage",
-  "testTimeout": 60000,
-  "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
+  "testTimeout": 120000,
+  "setupFilesAfterEnv": ["<rootDir>/setup.ts"],
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/../src/$1"
+  },
+  "maxWorkers": 1
 }
 

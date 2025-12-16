@@ -1,43 +1,43 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, ForeignKey, BelongsTo } from 'sequelize-typescript';
-import { Purchase } from './purchase.model';
-import { Product } from '../../products/models/product.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
-@Table({
-  tableName: 'purchase_items',
+export type PurchaseItemDocument = PurchaseItem & Document;
+
+@Schema({
   timestamps: false,
-  underscored: true,
+  _id: true,
 })
-export class PurchaseItem extends Model<PurchaseItem> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export class PurchaseItem {
+  _id: Types.ObjectId;
 
-  @ForeignKey(() => Purchase)
-  @AllowNull(false)
-  @Column({ field: 'purchase_id' })
-  purchaseId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Product', required: true })
+  productId: Types.ObjectId;
 
-  @ForeignKey(() => Product)
-  @AllowNull(false)
-  @Column({ field: 'product_id' })
-  productId: number;
-
-  @AllowNull(false)
-  @Column(DataType.INTEGER)
+  @Prop({ required: true })
   quantity: number;
 
-  @AllowNull(false)
-  @Column({ field: 'unit_cost' })
+  @Prop({ required: true, type: Number })
   unitCost: number;
 
-  @AllowNull(false)
-  @Column({ field: 'total_cost' })
+  @Prop({ required: true, type: Number })
   totalCost: number;
-
-  @BelongsTo(() => Purchase)
-  purchase: Purchase;
-
-  @BelongsTo(() => Product)
-  product: Product;
 }
+
+export const PurchaseItemSchema = SchemaFactory.createForClass(PurchaseItem);
+
+// Virtual populate for product
+PurchaseItemSchema.virtual('product', {
+  ref: 'Product',
+  localField: 'productId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+PurchaseItemSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

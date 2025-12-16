@@ -1,4 +1,5 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, CreatedAt, Default } from 'sequelize-typescript';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
 export enum NotificationType {
   CAMPAIGN = 'CAMPAIGN',
@@ -9,43 +10,47 @@ export enum NotificationType {
   GENERAL = 'GENERAL'
 }
 
-@Table({
-  tableName: 'notifications',
+export type NotificationDocument = Notification & Document;
+
+@Schema({
   timestamps: true,
-  underscored: true,
+  collection: 'notifications',
 })
-export class Notification extends Model<Notification> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export class Notification {
+  _id: Types.ObjectId;
 
-  @Column({ field: 'customer_id' })
-  customerId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Customer' })
+  customerId: Types.ObjectId;
 
-  @AllowNull(false)
-  @Column(DataType.STRING)
+  @Prop({ required: true })
   title: string;
 
-  @AllowNull(false)
-  @Column(DataType.TEXT)
+  @Prop({ required: true })
   message: string;
 
-  @AllowNull(false)
-  @Column(DataType.ENUM(...Object.values(NotificationType)))
+  @Prop({ required: true, enum: NotificationType })
   type: NotificationType;
 
-  @Default(false)
-  @Column({ field: 'is_read' })
+  @Prop({ default: false })
   isRead: boolean;
 
-  @Column({ field: 'scheduled_at' })
+  @Prop()
   scheduledAt: Date;
 
-  @Column({ field: 'sent_at' })
+  @Prop()
   sentAt: Date;
 
-  @CreatedAt
-  @Column({ field: 'created_at' })
   createdAt: Date;
+  updatedAt: Date;
 }
+
+export const NotificationSchema = SchemaFactory.createForClass(Notification);
+
+NotificationSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

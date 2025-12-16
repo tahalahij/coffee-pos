@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { DiscountCode, DiscountType } from './models/discount-code.model';
-import { Customer } from '../customers/models/customer.model';
-import { Sale } from '../sales/models/sale.model';
-import { Op } from 'sequelize';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { DiscountCode, DiscountCodeDocument, DiscountType } from './models/discount-code.model';
+import { Customer, CustomerDocument } from '../customers/models/customer.model';
+import { Product, ProductDocument } from '../products/models/product.model';
 
 export interface CreateDiscountCodeDto {
   code?: string;
@@ -14,17 +14,28 @@ export interface CreateDiscountCodeDto {
   minPurchase?: number;
   maxDiscount?: number;
   usageLimit?: number;
-  customerId?: number;
+  customerId?: string;
+  startsAt?: string;
   expiresAt?: string;
+  productIds?: string[];
+}
+
+export interface ValidateDiscountForProductsDto {
+  code: string;
+  productIds: string[];
+  subtotal: number;
+  customerId?: string;
 }
 
 @Injectable()
 export class DiscountsService {
   constructor(
-    @InjectModel(DiscountCode)
-    private discountCodeModel: typeof DiscountCode,
-    @InjectModel(Customer)
-    private customerModel: typeof Customer,
+    @InjectModel(DiscountCode.name)
+    private discountCodeModel: Model<DiscountCodeDocument>,
+    @InjectModel(Customer.name)
+    private customerModel: Model<CustomerDocument>,
+    @InjectModel(Product.name)
+    private productModel: Model<ProductDocument>,
   ) {}
 
   async create(createDiscountDto: CreateDiscountCodeDto) {
@@ -32,9 +43,7 @@ export class DiscountsService {
     const code = createDiscountDto.code || this.generateDiscountCode();
 
     // Check if code already exists
-    const existingCode = await this.discountCodeModel.findOne({
-      where: { code },
-    });
+    const existingCode = await this.discountCodeModel.findOne({ code });
 
     if (existingCode) {
       throw new BadRequestException('Discount code already exists');
@@ -45,7 +54,18 @@ export class DiscountsService {
       throw new BadRequestException('Percentage discount cannot exceed 100%');
     }
 
-    return this.discountCodeModel.create({
+    // Validate date range
+    if (createDiscountDto.startsAt && createDiscountDto.expiresAt) {
+      const startsAt = new Date(createDiscountDto.startsAt);
+      const expiresAt = new Date(createDiscountDto.expiresAt);
+      if (startsAt >= expiresAt) {
+        throw new BadRequestException('Start date must be before expiration date');
+      }
+    }
+
+    const hasProductRestrictions = createDiscountDto.productIds && createDiscountDto.productIds.length > 0;
+
+    const discountCode = new this.discountCodeModel({
       code,
       name: createDiscountDto.name,
       description: createDiscountDto.description,
@@ -54,101 +74,183 @@ export class DiscountsService {
       minPurchase: createDiscountDto.minPurchase,
       maxDiscount: createDiscountDto.maxDiscount,
       usageLimit: createDiscountDto.usageLimit,
-      customerId: createDiscountDto.customerId,
+      customerId: createDiscountDto.customerId ? new Types.ObjectId(createDiscountDto.customerId) : null,
+      startsAt: createDiscountDto.startsAt ? new Date(createDiscountDto.startsAt) : null,
       expiresAt: createDiscountDto.expiresAt ? new Date(createDiscountDto.expiresAt) : null,
+      productRestricted: hasProductRestrictions,
+      productIds: hasProductRestrictions 
+        ? createDiscountDto.productIds.map(id => new Types.ObjectId(id))
+        : [],
     });
+
+    await discountCode.save();
+    return this.findOne(discountCode._id.toString());
   }
 
   async findAll() {
-    return this.discountCodeModel.findAll({
-      include: [
-        {
-          model: Customer,
-          attributes: ['id', 'name', 'phone'],
-        },
-      ],
-      order: [['createdAt', 'DESC']],
-    });
+    const discounts = await this.discountCodeModel.find().sort({ createdAt: -1 }).lean();
+    
+    return Promise.all(discounts.map(async (discount) => {
+      const customer = discount.customerId 
+        ? await this.customerModel.findById(discount.customerId).select('_id name phone').lean()
+        : null;
+      
+      const products = discount.productIds?.length > 0
+        ? await this.productModel.find({ _id: { $in: discount.productIds } }).select('_id name price').lean()
+        : [];
+
+      return {
+        ...discount,
+        id: discount._id,
+        customer: customer ? { ...customer, id: customer._id } : null,
+        products: products.map(p => ({ ...p, id: p._id })),
+      };
+    }));
   }
 
   async findActive() {
     const now = new Date();
 
-    return this.discountCodeModel.findAll({
-      where: {
-        isActive: true,
-        [Op.or]: [
-          { expiresAt: null },
-          { expiresAt: { [Op.gte]: now } },
-        ],
-      },
-      include: [
-        {
-          model: Customer,
-          attributes: ['id', 'name', 'phone'],
-        },
+    const discounts = await this.discountCodeModel.find({
+      isActive: true,
+      $and: [
+        { $or: [{ startsAt: null }, { startsAt: { $lte: now } }] },
+        { $or: [{ expiresAt: null }, { expiresAt: { $gte: now } }] },
       ],
-      order: [['value', 'DESC']],
-    });
+    }).sort({ value: -1 }).lean();
+
+    return Promise.all(discounts.map(async (discount) => {
+      const customer = discount.customerId 
+        ? await this.customerModel.findById(discount.customerId).select('_id name phone').lean()
+        : null;
+      
+      const products = discount.productIds?.length > 0
+        ? await this.productModel.find({ _id: { $in: discount.productIds } }).select('_id name price').lean()
+        : [];
+
+      return {
+        ...discount,
+        id: discount._id,
+        customer: customer ? { ...customer, id: customer._id } : null,
+        products: products.map(p => ({ ...p, id: p._id })),
+      };
+    }));
   }
 
-  async findOne(id: number) {
-    const discountCode = await this.discountCodeModel.findByPk(id, {
-      include: [
-        {
-          model: Customer,
-          attributes: ['id', 'name', 'phone'],
-        },
-      ],
-    });
+  async findOne(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
+    }
+
+    const discount = await this.discountCodeModel.findById(id).lean();
+
+    if (!discount) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
+    }
+
+    const customer = discount.customerId 
+      ? await this.customerModel.findById(discount.customerId).select('_id name phone').lean()
+      : null;
+    
+    const products = discount.productIds?.length > 0
+      ? await this.productModel.find({ _id: { $in: discount.productIds } }).select('_id name price').lean()
+      : [];
+
+    return {
+      ...discount,
+      id: discount._id,
+      customer: customer ? { ...customer, id: customer._id } : null,
+      products: products.map(p => ({ ...p, id: p._id })),
+    };
+  }
+
+  async findByCode(code: string) {
+    const discount = await this.discountCodeModel.findOne({ code }).lean();
+
+    if (!discount) {
+      throw new NotFoundException(`Discount code "${code}" not found`);
+    }
+
+    const customer = discount.customerId 
+      ? await this.customerModel.findById(discount.customerId).select('_id name phone').lean()
+      : null;
+    
+    const products = discount.productIds?.length > 0
+      ? await this.productModel.find({ _id: { $in: discount.productIds } }).select('_id name price').lean()
+      : [];
+
+    return {
+      ...discount,
+      id: discount._id,
+      customer: customer ? { ...customer, id: customer._id } : null,
+      products: products.map(p => ({ ...p, id: p._id })),
+    };
+  }
+
+  async update(id: string, updateDiscountDto: CreateDiscountCodeDto) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
+    }
+
+    const discountCode = await this.discountCodeModel.findById(id);
 
     if (!discountCode) {
       throw new NotFoundException(`Discount code with ID ${id} not found`);
     }
-
-    return discountCode;
-  }
-
-  async update(id: number, updateDiscountDto: CreateDiscountCodeDto) {
-    await this.findOne(id); // Check if exists
 
     // Validate percentage discount
     if (updateDiscountDto.type === 'PERCENTAGE' && updateDiscountDto.value && updateDiscountDto.value > 100) {
       throw new BadRequestException('Percentage discount cannot exceed 100%');
     }
 
-    const [affectedCount, updatedRows] = await this.discountCodeModel.update(
-      {
-        name: updateDiscountDto.name,
-        description: updateDiscountDto.description,
-        type: updateDiscountDto.type,
-        value: updateDiscountDto.value,
-        minPurchase: updateDiscountDto.minPurchase,
-        maxDiscount: updateDiscountDto.maxDiscount,
-        usageLimit: updateDiscountDto.usageLimit,
-        customerId: updateDiscountDto.customerId,
-        expiresAt: updateDiscountDto.expiresAt ? new Date(updateDiscountDto.expiresAt) : null,
-      },
-      {
-        where: { id },
-        returning: true,
+    // Validate date range
+    if (updateDiscountDto.startsAt && updateDiscountDto.expiresAt) {
+      const startsAt = new Date(updateDiscountDto.startsAt);
+      const expiresAt = new Date(updateDiscountDto.expiresAt);
+      if (startsAt >= expiresAt) {
+        throw new BadRequestException('Start date must be before expiration date');
       }
-    );
+    }
 
-    return updatedRows[0];
-  }
+    const hasProductRestrictions = updateDiscountDto.productIds && updateDiscountDto.productIds.length > 0;
 
-  async remove(id: number) {
-    await this.findOne(id); // Check if exists
-
-    await this.discountCodeModel.destroy({
-      where: { id },
+    Object.assign(discountCode, {
+      name: updateDiscountDto.name,
+      description: updateDiscountDto.description,
+      type: updateDiscountDto.type,
+      value: updateDiscountDto.value,
+      minPurchase: updateDiscountDto.minPurchase,
+      maxDiscount: updateDiscountDto.maxDiscount,
+      usageLimit: updateDiscountDto.usageLimit,
+      customerId: updateDiscountDto.customerId ? new Types.ObjectId(updateDiscountDto.customerId) : null,
+      startsAt: updateDiscountDto.startsAt ? new Date(updateDiscountDto.startsAt) : null,
+      expiresAt: updateDiscountDto.expiresAt ? new Date(updateDiscountDto.expiresAt) : null,
+      productRestricted: hasProductRestrictions,
+      productIds: hasProductRestrictions 
+        ? updateDiscountDto.productIds.map(id => new Types.ObjectId(id))
+        : [],
     });
 
+    await discountCode.save();
+    return this.findOne(id);
+  }
+
+  async remove(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
+    }
+
+    const discount = await this.discountCodeModel.findById(id);
+
+    if (!discount) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
+    }
+
+    await this.discountCodeModel.findByIdAndDelete(id);
     return { message: 'Discount code deleted successfully' };
   }
 
-  async calculateDiscount(amount: number, discountCodeId?: number) {
+  async calculateDiscount(amount: number, discountCodeId?: string) {
     if (!discountCodeId) {
       return { discountAmount: 0, finalAmount: amount };
     }
@@ -190,15 +292,20 @@ export class DiscountsService {
     };
   }
 
-  private isDiscountCodeValid(discountCode: DiscountCode): boolean {
+  private isDiscountCodeValid(discountCode: any): boolean {
     if (!discountCode.isActive) {
       return false;
     }
 
     const now = new Date();
 
+    // Check start date
+    if (discountCode.startsAt && now < new Date(discountCode.startsAt)) {
+      return false;
+    }
+
     // Check expiration
-    if (discountCode.expiresAt && now > discountCode.expiresAt) {
+    if (discountCode.expiresAt && now > new Date(discountCode.expiresAt)) {
       return false;
     }
 
@@ -210,131 +317,173 @@ export class DiscountsService {
     return true;
   }
 
-  async toggleActive(id: number) {
-    const discountCode = await this.findOne(id);
-
-    const [affectedCount, updatedRows] = await this.discountCodeModel.update(
-      {
-        isActive: !discountCode.isActive,
-      },
-      {
-        where: { id },
-        returning: true,
-      }
-    );
-
-    return updatedRows[0];
-  }
-
-  async getDiscountCodes(customerId?: number) {
-    const whereCondition = customerId ? { customerId } : {};
-
-    return this.discountCodeModel.findAll({
-      where: whereCondition,
-      include: [
-        {
-          model: Customer,
-          attributes: ['id', 'name', 'phone'],
-        },
-      ],
-      order: [['createdAt', 'DESC']],
-    });
-  }
-
-  async getDiscountCodeByCode(code: string) {
-    const discountCode = await this.discountCodeModel.findOne({
-      where: { code },
-      include: [
-        {
-          model: Customer,
-          attributes: ['id', 'name', 'phone'],
-        },
-      ],
-    });
-
-    if (!discountCode) {
-      throw new NotFoundException('Discount code not found');
+  private isDiscountValidForProducts(discountCode: any, productIds: string[]): boolean {
+    // If no product restrictions, the discount is valid for all products
+    if (!discountCode.productRestricted || !discountCode.productIds?.length) {
+      return true;
     }
 
-    return discountCode;
+    const allowedProductIds = discountCode.productIds.map((id: any) => id.toString());
+
+    // Check if at least one of the cart products is allowed
+    return productIds.some(id => allowedProductIds.includes(id));
   }
 
-  async validateDiscountCode(code: string, customerId?: number, subtotal?: number) {
-    const discountCode = await this.getDiscountCodeByCode(code);
+  async toggleActive(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
+    }
 
-    // Check if code is valid
-    if (!this.isDiscountCodeValid(discountCode)) {
-      throw new BadRequestException('Discount code is not valid, expired, or has reached usage limit');
+    const discountCode = await this.discountCodeModel.findById(id);
+
+    if (!discountCode) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
+    }
+
+    discountCode.isActive = !discountCode.isActive;
+    await discountCode.save();
+
+    return this.findOne(id);
+  }
+
+  async incrementUsage(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
+    }
+
+    await this.discountCodeModel.findByIdAndUpdate(id, { $inc: { usageCount: 1 } });
+  }
+
+  async validateDiscountForProducts(dto: ValidateDiscountForProductsDto) {
+    return this.validateAndApplyCode(dto.code, dto.subtotal, dto.productIds, dto.customerId);
+  }
+
+  async validateAndApplyCode(code: string, subtotal: number, productIds?: string[], customerId?: string) {
+    const discount = await this.findByCode(code);
+
+    // Check if discount is valid
+    if (!this.isDiscountCodeValid(discount)) {
+      throw new BadRequestException('کد تخفیف نامعتبر یا منقضی شده است');
+    }
+
+    // Check minimum purchase
+    if (discount.minPurchase && subtotal < discount.minPurchase) {
+      throw new BadRequestException(`حداقل مبلغ خرید ${discount.minPurchase} تومان است`);
     }
 
     // Check customer restriction
-    if (discountCode.customerId && discountCode.customerId !== customerId) {
-      throw new BadRequestException('Discount code is not valid for this customer');
+    if (discount.customerId && customerId !== discount.customerId.toString()) {
+      throw new BadRequestException('این کد تخفیف برای شما قابل استفاده نیست');
     }
 
-    // Check minimum purchase requirement
-    if (discountCode.minPurchase && subtotal && subtotal < Number(discountCode.minPurchase)) {
-      throw new BadRequestException(`Minimum purchase of $${discountCode.minPurchase} required`);
+    // Check product restriction
+    if (productIds && productIds.length > 0 && !this.isDiscountValidForProducts(discount, productIds)) {
+      throw new BadRequestException('این کد تخفیف برای محصولات انتخابی معتبر نیست');
     }
 
-    return discountCode;
-  }
-
-  async applyDiscountCode(code: string, subtotal: number, customerId?: number) {
-    const discountCode = await this.validateDiscountCode(code, customerId, subtotal);
-
-    let discountAmount = 0;
-    if (discountCode.type === 'PERCENTAGE') {
-      discountAmount = (subtotal * Number(discountCode.value)) / 100;
+    // Calculate discount amount
+    let discountAmount: number;
+    if (discount.type === 'PERCENTAGE') {
+      discountAmount = (subtotal * discount.value) / 100;
     } else {
-      discountAmount = Math.min(Number(discountCode.value), subtotal);
+      discountAmount = Math.min(discount.value, subtotal);
     }
 
-    // Apply maximum discount limit if specified
-    if (discountCode.maxDiscount && discountAmount > Number(discountCode.maxDiscount)) {
-      discountAmount = Number(discountCode.maxDiscount);
+    // Apply max discount limit
+    if (discount.maxDiscount && discountAmount > discount.maxDiscount) {
+      discountAmount = discount.maxDiscount;
     }
 
     return {
-      id: discountCode.id,
-      code: discountCode.code,
-      name: discountCode.name,
-      discountCodeId: discountCode.id,
+      valid: true,
+      discountCode: discount,
       discountAmount,
       finalAmount: subtotal - discountAmount,
-      type: discountCode.type,
-      value: Number(discountCode.value),
     };
   }
 
+  async getStats() {
+    const total = await this.discountCodeModel.countDocuments();
+    const active = await this.discountCodeModel.countDocuments({ isActive: true });
+    
+    const now = new Date();
+    const expired = await this.discountCodeModel.countDocuments({
+      expiresAt: { $lt: now }
+    });
+
+    const usageStats = await this.discountCodeModel.aggregate([
+      { $group: { _id: null, totalUsage: { $sum: '$usageCount' } } }
+    ]);
+
+    return {
+      total,
+      active,
+      expired,
+      totalUsage: usageStats[0]?.totalUsage || 0,
+    };
+  }
+
+  // Alias for controller compatibility
+  async getDiscountStats() {
+    return this.getStats();
+  }
+
+  // Alias for controller compatibility  
   async createDiscountCode(createDiscountCodeDto: CreateDiscountCodeDto) {
     return this.create(createDiscountCodeDto);
   }
 
-  async useDiscountCode(discountCodeId: number) {
-    const discountCode = await this.findOne(discountCodeId);
-
-    // Increment usage count
-    const [affectedCount, updatedRows] = await this.discountCodeModel.update(
-      {
-        usageCount: discountCode.usageCount + 1,
-      },
-      {
-        where: { id: discountCodeId },
-        returning: true,
-      }
-    );
-
-    return {
-      success: true,
-      message: 'Discount code used successfully',
-      usageCount: updatedRows[0].usageCount,
-    };
+  // Alias for controller compatibility
+  async getDiscountCodes(customerId?: number) {
+    if (customerId) {
+      const customerIdStr = customerId.toString();
+      return this.discountCodeModel.find({ 
+        $or: [
+          { customerId: null },
+          { customerId: new Types.ObjectId(customerIdStr) }
+        ]
+      }).sort({ createdAt: -1 }).lean();
+    }
+    return this.findAll();
   }
 
-  async generatePersonalizedCodes(customerId: number, count: number = 1) {
-    const customer = await this.customerModel.findByPk(customerId);
+  // Alias for controller compatibility
+  async validateDiscountCode(code: string, customerId?: number, subtotal?: number) {
+    const discount = await this.findByCode(code);
+    
+    if (!this.isDiscountCodeValid(discount)) {
+      throw new BadRequestException('کد تخفیف نامعتبر یا منقضی شده است');
+    }
 
+    if (subtotal && discount.minPurchase && subtotal < discount.minPurchase) {
+      throw new BadRequestException(`حداقل مبلغ خرید ${discount.minPurchase} تومان است`);
+    }
+
+    if (customerId && discount.customerId && customerId.toString() !== discount.customerId.toString()) {
+      throw new BadRequestException('این کد تخفیف برای شما قابل استفاده نیست');
+    }
+
+    return { valid: true, discount };
+  }
+
+  async getDiscountCodeByCode(code: string) {
+    return this.findByCode(code);
+  }
+
+  async useDiscountCode(id: string) {
+    await this.incrementUsage(id);
+    return this.findOne(id);
+  }
+
+  async applyDiscountCode(code: string, subtotal: number, customerId?: number, productIds?: number[]) {
+    const productIdStrings = productIds?.map(id => id.toString());
+    const customerIdStr = customerId?.toString();
+    return this.validateAndApplyCode(code, subtotal, productIdStrings, customerIdStr);
+  }
+
+  async generatePersonalizedCodes(customerId: string, count: number = 1) {
+    const customer = await this.customerModel.findById(customerId);
+    
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
@@ -342,12 +491,12 @@ export class DiscountsService {
     const codes = [];
     for (let i = 0; i < count; i++) {
       const code = await this.create({
+        code: `CUST${customerId.slice(-6)}-${this.generateDiscountCode()}`,
+        name: `Personal code for ${customer.name}`,
         type: DiscountType.PERCENTAGE,
-        value: 10, // Default 10% discount
-        customerId,
-        name: `Personal discount for ${customer.name}`,
-        description: `Personalized discount code for ${customer.name}`,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+        value: 10,
+        customerId: customerId,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       });
       codes.push(code);
     }
@@ -356,151 +505,95 @@ export class DiscountsService {
   }
 
   async createBulkDiscountCodes(options: {
+    prefix: string;
     count: number;
     type: DiscountType;
     value: number;
-    prefix?: string;
-    expiresAt?: string;
     minPurchase?: number;
+    maxDiscount?: number;
+    usageLimit?: number;
+    expiresAt?: string;
   }) {
     const codes = [];
-
     for (let i = 0; i < options.count; i++) {
       const code = await this.create({
-        code: options.prefix ? `${options.prefix}${String(i + 1).padStart(3, '0')}` : undefined,
+        code: `${options.prefix}-${this.generateDiscountCode()}`,
         type: options.type,
         value: options.value,
         minPurchase: options.minPurchase,
+        maxDiscount: options.maxDiscount,
+        usageLimit: options.usageLimit,
         expiresAt: options.expiresAt,
-        name: `Bulk discount code ${i + 1}`,
-        description: `Bulk generated discount code`,
       });
       codes.push(code);
     }
-
     return codes;
   }
 
-  async getDiscountStats() {
-    const totalCodes = await this.discountCodeModel.count();
-    const activeCodes = await this.discountCodeModel.count({
-      where: { isActive: true },
-    });
-
-    // Count codes that have been used (have usage count > 0)
-    const usedCodes = await this.discountCodeModel.count({
-      where: { usageCount: { [Op.gt]: 0 } },
-    });
-
-    // Count expired codes
-    const now = new Date();
-    const expiredCodes = await this.discountCodeModel.count({
-      where: {
-        expiresAt: { [Op.lt]: now },
-      },
-    });
-
-    // Get all codes for calculating fully used codes and total usage
-    const allCodes = await this.discountCodeModel.findAll({
-      attributes: ['usageCount', 'usageLimit'],
-    });
-
-    const fullyUsedCodes = allCodes.filter(code =>
-      code.usageLimit !== null && code.usageCount >= code.usageLimit
-    ).length;
-
-    // Calculate total usage (sum of all usage counts)
-    const totalUsage = allCodes.reduce((sum, code) => sum + code.usageCount, 0);
-
-    return {
-      totalCodes,
-      activeCodes,
-      usedCodes,
-      expiredCodes,
-      fullyUsedCodes,
-      totalUsage,
-      redemptionRate: totalCodes > 0 ? (usedCodes / totalCodes) * 100 : 0,
-    };
-  }
-
-  private generateDiscountCode(): string {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    return result;
+  async getCustomerDiscountHistory(customerId: string) {
+    return this.discountCodeModel.find({ 
+      customerId: new Types.ObjectId(customerId),
+      usageCount: { $gt: 0 }
+    }).sort({ updatedAt: -1 }).lean();
   }
 
   async deactivateExpiredCodes() {
     const now = new Date();
-
-    const [affectedCount] = await this.discountCodeModel.update(
-      { isActive: false },
-      {
-        where: {
-          expiresAt: { [Op.lt]: now },
-          isActive: true,
-        },
-      }
+    const result = await this.discountCodeModel.updateMany(
+      { expiresAt: { $lt: now }, isActive: true },
+      { isActive: false }
     );
-
-    return { deactivatedCount: affectedCount };
+    return { deactivated: result.modifiedCount };
   }
 
-  async getCustomerDiscountHistory(customerId: number) {
-    const customer = await this.customerModel.findByPk(customerId);
+  async getDiscountProducts(id: string) {
+    const discount = await this.findOne(id);
+    return discount.products || [];
+  }
 
-    if (!customer) {
-      throw new NotFoundException('Customer not found');
+  async setDiscountProducts(id: string, productIds: number[]) {
+    const discount = await this.discountCodeModel.findById(id);
+    if (!discount) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
     }
 
-    const discountCodes = await this.discountCodeModel.findAll({
-      where: { customerId },
-      order: [['createdAt', 'DESC']],
-    });
+    discount.productIds = productIds.map(pid => new Types.ObjectId(pid.toString()));
+    discount.productRestricted = productIds.length > 0;
+    await discount.save();
+  }
 
-    // Get sales where discount codes were used by this customer
-    const salesWithDiscounts = await this.customerModel.findByPk(customerId, {
-      include: [
-        {
-          model: Sale,
-          where: {
-            discountCodeId: { [Op.not]: null },
-          },
-          include: [
-            {
-              model: DiscountCode,
-              as: 'discountCode',
-            },
-          ],
-          required: false,
-        },
-      ],
-    });
+  async addProductToDiscount(id: string, productId: number) {
+    const discount = await this.discountCodeModel.findById(id);
+    if (!discount) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
+    }
 
-    const sales = salesWithDiscounts?.sales || [];
+    const productOid = new Types.ObjectId(productId.toString());
+    if (!discount.productIds.some(pid => pid.equals(productOid))) {
+      discount.productIds.push(productOid);
+      discount.productRestricted = true;
+      await discount.save();
+    }
+  }
 
-    // Calculate total savings
-    const totalSavings = sales.reduce((sum, sale) =>
-      sum + Number(sale.discountAmount || 0), 0
-    );
+  async removeProductFromDiscount(id: string, productId: number) {
+    const discount = await this.discountCodeModel.findById(id);
+    if (!discount) {
+      throw new NotFoundException(`Discount code with ID ${id} not found`);
+    }
 
-    return {
-      customer: {
-        id: customer.id,
-        name: customer.name,
-        phone: customer.phone,
-      },
-      personalCodes: discountCodes,
-      usageHistory: sales.map(sale => ({
-        id: sale.id,
-        date: sale.createdAt,
-        discountCode: (sale as any).discountCode?.code,
-        discountAmount: Number(sale.discountAmount),
-        totalAmount: Number(sale.totalAmount),
-      })),
-      totalSavings,
-    };
+    const productOid = new Types.ObjectId(productId.toString());
+    discount.productIds = discount.productIds.filter(pid => !pid.equals(productOid));
+    discount.productRestricted = discount.productIds.length > 0;
+    await discount.save();
+  }
+
+  private generateDiscountCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
   }
 }

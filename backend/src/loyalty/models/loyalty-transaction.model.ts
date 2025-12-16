@@ -1,5 +1,5 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, CreatedAt, ForeignKey, BelongsTo } from 'sequelize-typescript';
-import { Customer } from '../../customers/models/customer.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
 export enum LoyaltyTransactionType {
   EARNED = 'EARNED',
@@ -9,40 +9,49 @@ export enum LoyaltyTransactionType {
   ADJUSTMENT = 'ADJUSTMENT'
 }
 
-@Table({
-  tableName: 'loyalty_transactions',
+export type LoyaltyTransactionDocument = LoyaltyTransaction & Document;
+
+@Schema({
   timestamps: true,
-  underscored: true,
+  collection: 'loyalty_transactions',
 })
-export class LoyaltyTransaction extends Model<LoyaltyTransaction> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export class LoyaltyTransaction {
+  _id: Types.ObjectId;
 
-  @ForeignKey(() => Customer)
-  @AllowNull(false)
-  @Column({ field: 'customer_id' })
-  customerId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
+  customerId: Types.ObjectId;
 
-  @AllowNull(false)
-  @Column(DataType.ENUM(...Object.values(LoyaltyTransactionType)))
+  @Prop({ required: true, enum: LoyaltyTransactionType })
   type: LoyaltyTransactionType;
 
-  @AllowNull(false)
-  @Column(DataType.INTEGER)
+  @Prop({ required: true })
   points: number;
 
-  @Column(DataType.TEXT)
+  @Prop()
   description: string;
 
-  @Column({ field: 'sale_id' })
-  saleId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Sale' })
+  saleId: Types.ObjectId;
 
-  @CreatedAt
-  @Column({ field: 'created_at' })
   createdAt: Date;
-
-  @BelongsTo(() => Customer)
-  customer: Customer;
+  updatedAt: Date;
 }
+
+export const LoyaltyTransactionSchema = SchemaFactory.createForClass(LoyaltyTransaction);
+
+// Virtual populate for customer
+LoyaltyTransactionSchema.virtual('customer', {
+  ref: 'Customer',
+  localField: 'customerId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+LoyaltyTransactionSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

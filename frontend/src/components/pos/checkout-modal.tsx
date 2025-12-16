@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { X, CreditCard, Banknote, Smartphone, Printer } from 'lucide-react'
+import { X, CreditCard, Banknote, Smartphone, Printer, Edit2, Check, Tag, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatCurrency } from '@/lib/utils'
-import { CartItem } from '@/types'
+import { formatCurrency, toEnglishDigits } from '@/lib/utils'
+import { CartItem, AppliedDiscount } from '@/types'
 import { useSalesStore } from '@/hooks/use-sales-store'
 import toast from 'react-hot-toast'
 import { api } from '@/lib/api'
@@ -23,11 +23,58 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
   const [isProcessing, setIsProcessing] = useState(false)
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerName, setCustomerName] = useState('')
+  const [customerSex, setCustomerSex] = useState<'MALE' | 'FEMALE' | 'OTHER' | ''>('')
   const [customer, setCustomer] = useState<any>(null)
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false)
   const [customerError, setCustomerError] = useState('')
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editedName, setEditedName] = useState('')
+  
+  // Discount code state
+  const [discountCode, setDiscountCode] = useState('')
+  const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(null)
+  const [discountLoading, setDiscountLoading] = useState(false)
+  const [discountError, setDiscountError] = useState('')
 
   if (!isOpen) return null
+
+  // Calculate totals with discount
+  const subtotal = total
+  const discountAmount = appliedDiscount?.discountAmount || 0
+  const finalTotal = subtotal - discountAmount
+
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) return
+    
+    setDiscountLoading(true)
+    setDiscountError('')
+    setAppliedDiscount(null)
+    
+    try {
+      // Get product IDs from cart items - use product.id directly (string MongoDB ObjectId)
+      const productIds = items.map(item => item.product.id)
+      
+      const response = await api.post(`/discounts/codes/${discountCode}/apply`, {
+        subtotal: total,
+        customerId: customer?.id,
+        productIds
+      })
+      
+      setAppliedDiscount(response.data)
+      toast.success('کد تخفیف اعمال شد')
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'کد تخفیف نامعتبر است'
+      setDiscountError(Array.isArray(message) ? message.join(' | ') : message)
+    } finally {
+      setDiscountLoading(false)
+    }
+  }
+
+  const handleRemoveDiscount = () => {
+    setAppliedDiscount(null)
+    setDiscountCode('')
+    setDiscountError('')
+  }
 
   const handlePayment = async () => {
     setIsProcessing(true)
@@ -38,17 +85,13 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
         paymentMethod,
         customerId: customer?.id,
         cashReceived: paymentMethod === 'CASH' ? cashReceived : undefined,
-        items: items.map(item => {
-          // Extract productId from cart item ID (format: "productId-uniqueId")
-          const productIdStr = item.id.toString().split('-')[0]
-          const productId = parseInt(productIdStr)
-          
-          return {
-            productId: productId,
-            quantity: item.quantity,
-            unitPrice: item.price
-          }
-        })
+        discountCodeId: appliedDiscount?.discountCodeId,
+        items: items.map(item => ({
+          // Use product.id directly - it's already a string MongoDB ObjectId
+          productId: item.product.id,
+          quantity: item.quantity,
+          unitPrice: item.price
+        }))
       }
 
       console.log('Sending sale data:', JSON.stringify(saleData, null, 2))
@@ -56,6 +99,15 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
       // Send to backend API - let it calculate totals, generate receipt, etc.
       const response = await api.post('/sales', saleData)
       const createdSale = response.data
+
+      // If discount was applied, mark it as used
+      if (appliedDiscount?.discountCodeId) {
+        try {
+          await api.post(`/discounts/codes/${appliedDiscount.code}/use`)
+        } catch (e) {
+          console.error('Error marking discount as used:', e)
+        }
+      }
 
       // Update the sales store by fetching the latest sales (which includes our new sale)
       // Don't call addSale() with the response data since it would try to create another sale
@@ -73,8 +125,8 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
     }
   }
 
-  const change = paymentMethod === 'CASH' ? Math.max(0, cashReceived - total) : 0
-  const canProcess = paymentMethod === 'CASH' ? cashReceived >= total : true
+  const change = paymentMethod === 'CASH' ? Math.max(0, cashReceived - finalTotal) : 0
+  const canProcess = paymentMethod === 'CASH' ? cashReceived >= finalTotal : true
 
   const handleCustomerSearch = async () => {
     setCustomerSearchLoading(true)
@@ -99,54 +151,136 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
   const handleAddCustomer = async () => {
     setCustomerError('')
     try {
-      const res = await api.post('/customers', { name: customerName, phone: customerPhone })
+      const res = await api.post('/customers', { 
+        name: customerName, 
+        phone: toEnglishDigits(customerPhone),
+        ...(customerSex && { sex: customerSex })
+      })
       setCustomer(res.data)
-    } catch (e) {
-      setCustomerError('خطا در افزودن مشتری')
+    } catch (e: any) {
+      const errorMessage = e.response?.data?.message
+      if (Array.isArray(errorMessage)) {
+        setCustomerError(errorMessage.join(' | '))
+      } else if (errorMessage) {
+        setCustomerError(errorMessage)
+      } else {
+        setCustomerError('خطا در افزودن مشتری')
+      }
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
-        <div className="flex items-center justify-between p-6 border-b">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md m-4 overflow-hidden">
+        <div className="flex items-center justify-between p-6 bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
           <h2 className="text-xl font-bold">صورتحساب</h2>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-white hover:bg-white/20">
             <X className="h-4 w-4" />
           </Button>
         </div>
 
         <div className="p-6 space-y-6">
           {/* Customer Search/Add */}
-          <div>
-            <label className="block text-sm font-medium mb-2">شماره تلفن مشتری</label>
+          <div className="bg-gray-50 rounded-xl p-4">
+            <label className="block text-sm font-bold text-gray-700 mb-3">شماره تلفن مشتری</label>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
                 value={customerPhone}
                 onChange={e => setCustomerPhone(e.target.value)}
-                className="border px-2 py-1 rounded w-full"
+                className="flex-1 border-0 px-4 py-3 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
                 placeholder="09123456789"
+                dir="ltr"
               />
-              <Button type="button" onClick={handleCustomerSearch} disabled={customerSearchLoading}>
-                {customerSearchLoading ? 'در حال جستجو...' : 'جستجو'}
+              <Button 
+                type="button" 
+                onClick={handleCustomerSearch} 
+                disabled={customerSearchLoading}
+                className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white rounded-xl px-4"
+              >
+                {customerSearchLoading ? 'جستجو...' : 'جستجو'}
               </Button>
             </div>
             {customer ? (
-              <div className="mb-2 text-green-700">مشتری: {customer.name}</div>
+              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl text-green-700">
+                <div className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                  {customer.name.charAt(0)}
+                </div>
+                {isEditingName ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="text"
+                      value={editedName}
+                      onChange={e => setEditedName(e.target.value)}
+                      className="flex-1 border-0 px-3 py-2 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-green-500 focus:outline-none text-gray-800"
+                      placeholder="نام جدید"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await api.patch(`/customers/${customer.id}`, { name: editedName })
+                          setCustomer({ ...customer, name: editedName })
+                          setIsEditingName(false)
+                          toast.success('نام مشتری بروزرسانی شد')
+                        } catch (e: any) {
+                          const msg = e.response?.data?.message
+                          toast.error(Array.isArray(msg) ? msg.join(' | ') : msg || 'خطا در بروزرسانی')
+                        }
+                      }}
+                      disabled={!editedName.trim()}
+                      className="bg-green-500 hover:bg-green-600 text-white rounded-lg p-2 h-8 w-8"
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="font-medium">مشتری: {customer.name}</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditedName(customer.name)
+                        setIsEditingName(true)
+                      }}
+                      className="p-1 h-7 w-7 rounded-full hover:bg-green-100"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : customerError ? (
-              <div className="mb-2 text-red-600">{customerError}</div>
+              <div className="p-3 bg-amber-50 rounded-xl text-amber-700 text-sm">{customerError}</div>
             ) : null}
             {!customer && customerError && (
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-2 mt-3 flex-wrap">
                 <input
                   type="text"
                   value={customerName}
                   onChange={e => setCustomerName(e.target.value)}
-                  className="border px-2 py-1 rounded w-full"
+                  className="flex-1 min-w-[120px] border-0 px-4 py-3 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
                   placeholder="نام مشتری را وارد کنید"
                 />
-                <Button type="button" onClick={handleAddCustomer} disabled={!customerName}>
+                <select
+                  value={customerSex}
+                  onChange={e => setCustomerSex(e.target.value as 'MALE' | 'FEMALE' | 'OTHER' | '')}
+                  className="border-0 px-4 py-3 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-green-500 focus:outline-none text-gray-700"
+                >
+                  <option value="">جنسیت</option>
+                  <option value="MALE">مرد</option>
+                  <option value="FEMALE">زن</option>
+                  <option value="OTHER">دیگر</option>
+                </select>
+                <Button 
+                  type="button" 
+                  onClick={handleAddCustomer} 
+                  disabled={!customerName}
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl px-4"
+                >
                   افزودن
                 </Button>
               </div>
@@ -154,78 +288,159 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
           </div>
 
           {/* Order Summary */}
-          <div>
-            <h3 className="font-medium mb-3">خلاصه سفارش</h3>
-            <div className="space-y-2 text-sm">
+          <div className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-xl p-4">
+            <h3 className="font-bold text-gray-800 mb-4">خلاصه سفارش</h3>
+            <div className="space-y-3 text-sm max-h-40 overflow-y-auto">
               {items.map((item) => (
-                <div key={item.id} className="flex justify-between">
-                  <span>{item.quantity}x {item.product.name}</span>
-                  <span>{formatCurrency(item.price * item.quantity)}</span>
+                <div key={item.id} className="flex justify-between items-center">
+                  <span className="text-gray-600">
+                    <span className="inline-flex items-center justify-center w-6 h-6 bg-emerald-100 text-emerald-600 rounded-full text-xs font-bold ml-2">
+                      {item.quantity}
+                    </span>
+                    {item.product.name}
+                  </span>
+                  <span className="font-medium text-gray-800">{formatCurrency(item.price * item.quantity)}</span>
                 </div>
               ))}
-              <div className="border-t pt-2 font-medium flex justify-between">
-                <span>مجموع:</span>
-                <span>{formatCurrency(total)}</span>
+            </div>
+            <div className="border-t border-gray-200 pt-4 mt-4 space-y-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500">جمع کل:</span>
+                <span className="font-medium text-gray-800">{formatCurrency(subtotal)}</span>
+              </div>
+              {appliedDiscount && (
+                <div className="flex justify-between items-center text-sm text-green-600">
+                  <span className="flex items-center gap-1">
+                    <Tag className="h-3 w-3" />
+                    تخفیف ({appliedDiscount.code}):
+                  </span>
+                  <span className="font-medium">-{formatCurrency(discountAmount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t">
+                <span className="text-lg font-bold text-gray-800">مبلغ نهایی:</span>
+                <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">{formatCurrency(finalTotal)}</span>
               </div>
             </div>
           </div>
 
+          {/* Discount Code */}
+          <div className="bg-purple-50 rounded-xl p-4">
+            <label className="block text-sm font-bold text-gray-700 mb-3">کد تخفیف</label>
+            {appliedDiscount ? (
+              <div className="flex items-center justify-between p-3 bg-green-100 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <Tag className="h-5 w-5 text-green-600" />
+                  <div>
+                    <span className="font-bold text-green-700">{appliedDiscount.code}</span>
+                    <span className="text-green-600 text-sm mr-2">
+                      ({appliedDiscount.type === 'PERCENTAGE' ? `${appliedDiscount.value}٪` : formatCurrency(appliedDiscount.value)} تخفیف)
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRemoveDiscount}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={discountCode}
+                    onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                    placeholder="کد تخفیف را وارد کنید"
+                    className="flex-1 border-0 px-4 py-3 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono"
+                    dir="ltr"
+                    onKeyDown={(e) => e.key === 'Enter' && handleApplyDiscount()}
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleApplyDiscount}
+                    disabled={discountLoading || !discountCode.trim()}
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl px-4"
+                  >
+                    {discountLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'اعمال'}
+                  </Button>
+                </div>
+                {discountError && (
+                  <p className="mt-2 text-sm text-red-600">{discountError}</p>
+                )}
+              </>
+            )}
+          </div>
+
           {/* Payment Method */}
           <div>
-            <h3 className="font-medium mb-3">روش پرداخت</h3>
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                variant={paymentMethod === 'CASH' ? 'default' : 'outline'}
+            <h3 className="font-bold text-gray-800 mb-3">روش پرداخت</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <button
                 onClick={() => setPaymentMethod('CASH')}
-                className="flex flex-col items-center p-4 h-auto"
+                className={`flex flex-col items-center p-4 rounded-xl transition-all ${
+                  paymentMethod === 'CASH' 
+                    ? 'bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-lg scale-105' 
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                }`}
               >
-                <Banknote className="h-6 w-6 mb-1" />
-                <span className="text-xs">نقدی</span>
-              </Button>
-              <Button
-                variant={paymentMethod === 'CARD' ? 'default' : 'outline'}
+                <Banknote className="h-6 w-6 mb-2" />
+                <span className="text-xs font-medium">نقدی</span>
+              </button>
+              <button
                 onClick={() => setPaymentMethod('CARD')}
-                className="flex flex-col items-center p-4 h-auto"
+                className={`flex flex-col items-center p-4 rounded-xl transition-all ${
+                  paymentMethod === 'CARD' 
+                    ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg scale-105' 
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                }`}
               >
-                <CreditCard className="h-6 w-6 mb-1" />
-                <span className="text-xs">کارت</span>
-              </Button>
-              <Button
-                variant={paymentMethod === 'DIGITAL' ? 'default' : 'outline'}
+                <CreditCard className="h-6 w-6 mb-2" />
+                <span className="text-xs font-medium">کارت</span>
+              </button>
+              <button
                 onClick={() => setPaymentMethod('DIGITAL')}
-                className="flex flex-col items-center p-4 h-auto"
+                className={`flex flex-col items-center p-4 rounded-xl transition-all ${
+                  paymentMethod === 'DIGITAL' 
+                    ? 'bg-gradient-to-br from-violet-500 to-purple-500 text-white shadow-lg scale-105' 
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                }`}
               >
-                <Smartphone className="h-6 w-6 mb-1" />
-                <span className="text-xs">دیجیتال</span>
-              </Button>
+                <Smartphone className="h-6 w-6 mb-2" />
+                <span className="text-xs font-medium">دیجیتال</span>
+              </button>
             </div>
           </div>
 
           {/* Cash Payment Details */}
           {paymentMethod === 'CASH' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">مبلغ دریافتی</label>
+            <div className="bg-green-50 rounded-xl p-4">
+              <label className="block text-sm font-bold text-gray-700 mb-3">مبلغ دریافتی</label>
               <input
                 type="number"
                 value={cashReceived || ''}
                 onChange={(e) => setCashReceived(parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0.00"
-                step="0.01"
+                className="w-full px-4 py-3 border-0 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+                placeholder="0"
+                dir="ltr"
               />
               {cashReceived > 0 && (
-                <div className="mt-2 p-3 bg-gray-50 rounded-md">
+                <div className="mt-4 p-4 bg-white rounded-xl shadow-sm space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>مجموع:</span>
-                    <span>{formatCurrency(total)}</span>
+                    <span className="text-gray-500">مبلغ قابل پرداخت:</span>
+                    <span className="font-medium text-gray-800">{formatCurrency(finalTotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>دریافتی:</span>
-                    <span>{formatCurrency(cashReceived)}</span>
+                    <span className="text-gray-500">دریافتی:</span>
+                    <span className="font-medium text-gray-800">{formatCurrency(cashReceived)}</span>
                   </div>
-                  <div className="flex justify-between font-medium border-t pt-1 mt-1">
-                    <span>باقیمانده:</span>
-                    <span className={change >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  <div className="flex justify-between font-bold border-t pt-2 mt-2">
+                    <span className="text-gray-700">باقیمانده:</span>
+                    <span className={`text-lg ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {formatCurrency(change)}
                     </span>
                   </div>
@@ -235,21 +450,28 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
           )}
         </div>
 
-        <div className="p-6 border-t space-y-3">
+        <div className="p-6 bg-gray-50 space-y-3">
           <Button
             onClick={handlePayment}
             disabled={!canProcess || isProcessing}
-            className="w-full"
+            className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl py-6 text-lg font-bold shadow-lg disabled:opacity-50"
             size="lg"
           >
-            {isProcessing ? 'در حال پردازش...' : `انجام پرداخت (${formatCurrency(total)})`}
+            {isProcessing ? 'در حال پردازش...' : `انجام پرداخت (${formatCurrency(finalTotal)})`}
           </Button>
 
-          <div className="flex space-x-2">
-            <Button variant="outline" onClick={onClose} className="flex-1">
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={onClose} 
+              className="flex-1 rounded-xl border-gray-200 hover:bg-gray-100"
+            >
               لغو
             </Button>
-                        <Button variant="outline" className="flex-1">
+            <Button 
+              variant="outline" 
+              className="flex-1 rounded-xl border-gray-200 hover:bg-gray-100"
+            >
               <Printer className="h-4 w-4 ml-2" />
               چاپ رسید
             </Button>

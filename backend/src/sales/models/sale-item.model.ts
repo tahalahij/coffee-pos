@@ -1,47 +1,46 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, CreatedAt, UpdatedAt, ForeignKey, BelongsTo, Default } from 'sequelize-typescript';
-import { Sale } from './sale.model';
-import { Product } from '../../products/models/product.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
-@Table({
-  tableName: 'sale_items',
-  timestamps: true,
-  underscored: true,
+export type SaleItemDocument = SaleItem & Document;
+
+@Schema({
+  timestamps: false,
+  _id: true,
 })
-export class SaleItem extends Model<SaleItem> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export class SaleItem {
+  _id: Types.ObjectId;
 
-  @ForeignKey(() => Sale)
-  @AllowNull(false)
-  @Column({ field: 'sale_id' })
-  saleId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Product', required: true })
+  productId: Types.ObjectId;
 
-  @ForeignKey(() => Product)
-  @AllowNull(false)
-  @Column({ field: 'product_id' })
-  productId: number;
-
-  @AllowNull(false)
-  @Column(DataType.INTEGER)
+  @Prop({ required: true })
   quantity: number;
 
-  @AllowNull(false)
-  @Column({ type: DataType.DECIMAL(10, 2), field: 'unit_price' })
+  @Prop({ required: true, type: Number })
   unitPrice: number;
 
-  @Default(0)
-  @Column({ type: DataType.DECIMAL(10, 2), field: 'discount_amount' })
+  @Prop({ default: 0, type: Number })
   discountAmount: number;
 
-  @AllowNull(false)
-  @Column({ type: DataType.DECIMAL(10, 2), field: 'total_amount' })
+  @Prop({ required: true, type: Number })
   totalAmount: number;
-
-  @BelongsTo(() => Sale)
-  sale: Sale;
-
-  @BelongsTo(() => Product)
-  product: Product;
 }
+
+export const SaleItemSchema = SchemaFactory.createForClass(SaleItem);
+
+// Virtual populate for product
+SaleItemSchema.virtual('product', {
+  ref: 'Product',
+  localField: 'productId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+SaleItemSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

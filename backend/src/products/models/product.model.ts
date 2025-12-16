@@ -1,78 +1,67 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Unique, CreatedAt, UpdatedAt, ForeignKey, BelongsTo, HasMany, Default } from 'sequelize-typescript';
-import { Category } from '../../categories/models/category.model';
-import { SaleItem } from '../../sales/models/sale-item.model';
-import { PurchaseItem } from '../../purchases/models/purchase-item.model';
-import { CampaignProduct } from '../../campaigns/models/campaign-product.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
-@Table({
-  tableName: 'products',
+export type ProductDocument = Product & Document;
+
+@Schema({
   timestamps: true,
-  underscored: true,
+  collection: 'products',
 })
-export class Product extends Model<Product> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export class Product {
+  _id: Types.ObjectId;
 
-  @Unique
-  @AllowNull(false)
-  @Column(DataType.STRING)
+  @Prop({ required: true, unique: true })
   name: string;
 
-  @Column(DataType.TEXT)
+  @Prop()
   description: string;
 
-  @AllowNull(false)
-  @Column(DataType.DECIMAL(10, 2))
+  @Prop({ required: true, type: Number })
   price: number;
 
-  @Column(DataType.DECIMAL(10, 2))
+  @Prop({ type: Number })
   cost: number;
 
-  @Unique
-  @Column(DataType.STRING)
+  @Prop({ unique: true, sparse: true })
   sku: string;
 
-  @Column({ field: 'image_url' })
+  @Prop()
   imageUrl: string;
 
-  @ForeignKey(() => Category)
-  @AllowNull(false)
-  @Column({ field: 'category_id' })
-  categoryId: number;
+  @Prop({ type: Types.ObjectId, ref: 'Category', required: true })
+  categoryId: Types.ObjectId;
 
-  @Default(true)
-  @Column({ field: 'is_available' })
+  @Prop({ default: true })
   isAvailable: boolean;
 
-  @Default(0)
-  @Column(DataType.INTEGER)
+  @Prop({ default: 0 })
   stock: number;
 
-  @Column({ field: 'low_stock_alert' })
+  @Prop()
   lowStockAlert: number;
 
-  @Column({ field: 'min_stock_level' })
+  @Prop()
   minStockLevel: number;
 
-  @CreatedAt
-  @Column({ field: 'created_at' })
   createdAt: Date;
-
-  @UpdatedAt
-  @Column({ field: 'updated_at' })
   updatedAt: Date;
-
-  @BelongsTo(() => Category)
-  category: Category;
-
-  @HasMany(() => SaleItem)
-  saleItems: SaleItem[];
-
-  @HasMany(() => PurchaseItem)
-  purchaseItems: PurchaseItem[];
-
-  @HasMany(() => CampaignProduct)
-  campaignProducts: CampaignProduct[];
 }
+
+export const ProductSchema = SchemaFactory.createForClass(Product);
+
+// Virtual populate for category
+ProductSchema.virtual('category', {
+  ref: 'Category',
+  localField: 'categoryId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+ProductSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

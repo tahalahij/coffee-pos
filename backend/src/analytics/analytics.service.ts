@@ -1,18 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Sale } from '../sales/models/sale.model';
-import { Product } from '../products/models/product.model';
-import { SaleItem } from '../sales/models/sale-item.model';
-import { Customer } from '../customers/models/customer.model';
-import { Op } from 'sequelize';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { Sale, SaleDocument } from '../sales/models/sale.model';
+import { Product, ProductDocument } from '../products/models/product.model';
+import { Customer, CustomerDocument } from '../customers/models/customer.model';
 
 @Injectable()
 export class AnalyticsService {
   constructor(
-    @InjectModel(Sale) private saleModel: typeof Sale,
-    @InjectModel(Product) private productModel: typeof Product,
-    @InjectModel(SaleItem) private saleItemModel: typeof SaleItem,
-    @InjectModel(Customer) private customerModel: typeof Customer,
+    @InjectModel(Sale.name) private saleModel: Model<SaleDocument>,
+    @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+    @InjectModel(Customer.name) private customerModel: Model<CustomerDocument>,
   ) {}
 
   async getDashboardStats() {
@@ -21,62 +19,64 @@ export class AnalyticsService {
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
     // Today's sales aggregation
-    const todaysSalesResult = await this.saleModel.findAll({
-      where: {
-        createdAt: { [Op.gte]: startOfDay },
-        status: 'COMPLETED',
+    const todaysSalesResult = await this.saleModel.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startOfDay },
+          status: 'COMPLETED',
+        },
       },
-      attributes: [
-        [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalAmount'],
-        [this.saleModel.sequelize.fn('COUNT', '*'), 'count'],
-      ],
-      raw: true,
-    });
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: '$totalAmount' },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
 
     // Month's sales aggregation
-    const monthSalesResult = await this.saleModel.findAll({
-      where: {
-        createdAt: { [Op.gte]: startOfMonth },
-        status: 'COMPLETED',
+    const monthSalesResult = await this.saleModel.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startOfMonth },
+          status: 'COMPLETED',
+        },
       },
-      attributes: [
-        [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalAmount'],
-        [this.saleModel.sequelize.fn('COUNT', '*'), 'count'],
-      ],
-      raw: true,
-    });
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: '$totalAmount' },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
 
     // Total products
-    const totalProducts = await this.productModel.count();
+    const totalProducts = await this.productModel.countDocuments();
 
     // Low stock products
-    const lowStockProducts = await this.productModel.count({
-      where: {
-        lowStockAlert: { [Op.ne]: null },
-        [Op.and]: this.productModel.sequelize.where(
-          this.productModel.sequelize.col('stock'),
-          Op.lte,
-          this.productModel.sequelize.col('low_stock_alert')
-        ),
-      },
+    const lowStockProducts = await this.productModel.countDocuments({
+      lowStockAlert: { $ne: null },
+      $expr: { $lte: ['$stock', '$lowStockAlert'] },
     });
 
-    // Recent sales - handle empty results
-    const recentSales = await this.saleModel.findAll({
-      limit: 10,
-      order: [['createdAt', 'DESC']],
-      attributes: ['id', 'receiptNumber', 'totalAmount', 'createdAt'],
-    });
+    // Recent sales
+    const recentSales = await this.saleModel
+      .find()
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('receiptNumber totalAmount createdAt')
+      .lean();
 
-    // Handle null/undefined aggregation results when no sales exist
-    const todaysData = (todaysSalesResult && todaysSalesResult.length > 0) ? todaysSalesResult[0] as any : {};
-    const monthData = (monthSalesResult && monthSalesResult.length > 0) ? monthSalesResult[0] as any : {};
+    const todaysData = todaysSalesResult[0] || {};
+    const monthData = monthSalesResult[0] || {};
 
     return {
-      todaySales: Number(todaysData?.totalAmount) || 0,
-      todayOrders: Number(todaysData?.count) || 0,
-      monthSales: Number(monthData?.totalAmount) || 0,
-      monthOrders: Number(monthData?.count) || 0,
+      todaySales: Number(todaysData.totalAmount) || 0,
+      todayOrders: Number(todaysData.count) || 0,
+      monthSales: Number(monthData.totalAmount) || 0,
+      monthOrders: Number(monthData.count) || 0,
       totalProducts: totalProducts || 0,
       lowStockProducts: lowStockProducts || 0,
       recentSales: recentSales || [],
@@ -101,17 +101,16 @@ export class AnalyticsService {
         throw new NotFoundException('Invalid period specified');
     }
 
-    const sales = await this.saleModel.findAll({
-      where: {
-        createdAt: { [Op.gte]: startDate },
+    const sales = await this.saleModel
+      .find({
+        createdAt: { $gte: startDate },
         status: 'COMPLETED',
-      },
-      attributes: ['totalAmount', 'createdAt'],
-    });
+      })
+      .select('totalAmount createdAt')
+      .lean();
 
-    // Handle empty sales array
     const safeSales = sales || [];
-    const totalSales = safeSales.length > 0 
+    const totalSales = safeSales.length > 0
       ? safeSales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0)
       : 0;
     const totalOrders = safeSales.length;
@@ -125,12 +124,12 @@ export class AnalyticsService {
         const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
 
         const hourlySales = safeSales.filter(
-          sale => sale.createdAt >= hourStart && sale.createdAt < hourEnd
+          sale => new Date(sale.createdAt) >= hourStart && new Date(sale.createdAt) < hourEnd
         );
 
         breakdown.push({
           period: hour,
-          sales: hourlySales.length > 0 
+          sales: hourlySales.length > 0
             ? hourlySales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0)
             : 0,
           orders: hourlySales.length,
@@ -144,12 +143,12 @@ export class AnalyticsService {
         const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
         const dailySales = safeSales.filter(
-          sale => sale.createdAt >= dayStart && sale.createdAt < dayEnd
+          sale => new Date(sale.createdAt) >= dayStart && new Date(sale.createdAt) < dayEnd
         );
 
         breakdown.push({
           date: dayStart.toISOString().split('T')[0],
-          sales: dailySales.length > 0 
+          sales: dailySales.length > 0
             ? dailySales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0)
             : 0,
           orders: dailySales.length,
@@ -165,30 +164,30 @@ export class AnalyticsService {
   }
 
   async getTopProducts(limit: number = 10) {
-    const topProducts = await this.saleItemModel.findAll({
-      attributes: [
-        'productId',
-        [this.saleItemModel.sequelize.fn('SUM', this.saleItemModel.sequelize.col('quantity')), 'totalQuantity'],
-        [this.saleItemModel.sequelize.fn('SUM', this.saleItemModel.sequelize.col('total_amount')), 'totalRevenue'],
-      ],
-      group: ['productId'],
-      order: [[this.saleItemModel.sequelize.col('totalQuantity'), 'DESC']],
-      limit,
-      raw: true,
-    });
+    // Use aggregation to get top products from embedded sale items
+    const topProducts = await this.saleModel.aggregate([
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.productId',
+          totalQuantity: { $sum: '$items.quantity' },
+          totalRevenue: { $sum: '$items.totalAmount' },
+        },
+      },
+      { $sort: { totalQuantity: -1 } },
+      { $limit: limit },
+    ]);
 
-    // Handle case where no sale items exist
     if (!topProducts || topProducts.length === 0) {
       return [];
     }
 
     return await Promise.all(
       topProducts.map(async (item: any) => {
-        const product = await this.productModel.findOne({
-          where: { id: item.productId },
-          attributes: ['name', 'price'],
-          raw: true,
-        });
+        const product = await this.productModel
+          .findById(item._id)
+          .select('name price')
+          .lean();
 
         return {
           product: product || { name: 'Unknown Product', price: 0 },
@@ -200,31 +199,29 @@ export class AnalyticsService {
   }
 
   async getTopCustomers(limit: number = 10) {
-    const topCustomers = await this.saleModel.findAll({
-      where: { customerId: { [Op.ne]: null } },
-      attributes: [
-        'customerId',
-        [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalSpent'],
-        [this.saleModel.sequelize.fn('COUNT', '*'), 'totalOrders'],
-      ],
-      group: ['customerId'],
-      order: [[this.saleModel.sequelize.col('totalSpent'), 'DESC']],
-      limit,
-      raw: true,
-    });
+    const topCustomers = await this.saleModel.aggregate([
+      { $match: { customerId: { $ne: null } } },
+      {
+        $group: {
+          _id: '$customerId',
+          totalSpent: { $sum: '$totalAmount' },
+          totalOrders: { $sum: 1 },
+        },
+      },
+      { $sort: { totalSpent: -1 } },
+      { $limit: limit },
+    ]);
 
-    // Handle case where no customer sales exist
     if (!topCustomers || topCustomers.length === 0) {
       return [];
     }
 
     return await Promise.all(
       topCustomers.map(async (item: any) => {
-        const customer = await this.customerModel.findOne({
-          where: { id: item.customerId },
-          attributes: ['name', 'phone'],
-          raw: true,
-        });
+        const customer = await this.customerModel
+          .findById(item._id)
+          .select('name phone')
+          .lean();
 
         return {
           customer: customer || { name: 'Unknown Customer', phone: null },
@@ -238,27 +235,36 @@ export class AnalyticsService {
   async getRevenueTrends() {
     const now = new Date();
 
-    // Daily trends (last 30 days)
+    // Daily trends (last 30 days) - use aggregation for efficiency
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const dailyAggregation = await this.saleModel.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: thirtyDaysAgo },
+          status: 'COMPLETED',
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+          },
+          revenue: { $sum: '$totalAmount' },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Create daily trends with all 30 days (fill missing days with 0)
     const dailyTrends = [];
     for (let i = 29; i >= 0; i--) {
       const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
-
-      const dailySales = await this.saleModel.findAll({
-        where: {
-          createdAt: { [Op.gte]: startOfDay, [Op.lt]: endOfDay },
-          status: 'COMPLETED',
-        },
-        attributes: [
-          [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalAmount'],
-        ],
-        raw: true,
-      });
-
+      const dateStr = date.toISOString().split('T')[0];
+      const found = dailyAggregation.find(d => d._id === dateStr);
       dailyTrends.push({
-        date: startOfDay.toISOString().split('T')[0],
-        revenue: (dailySales && dailySales.length > 0) ? (Number(dailySales[0]?.totalAmount) || 0) : 0,
+        date: dateStr,
+        revenue: found ? Number(found.revenue) : 0,
       });
     }
 
@@ -268,20 +274,24 @@ export class AnalyticsService {
       const weekStart = new Date(now.getTime() - (i * 7 + 7) * 24 * 60 * 60 * 1000);
       const weekEnd = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
 
-      const weeklySales = await this.saleModel.findAll({
-        where: {
-          createdAt: { [Op.gte]: weekStart, [Op.lt]: weekEnd },
-          status: 'COMPLETED',
+      const weeklySales = await this.saleModel.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: weekStart, $lt: weekEnd },
+            status: 'COMPLETED',
+          },
         },
-        attributes: [
-          [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalAmount'],
-        ],
-        raw: true,
-      });
+        {
+          $group: {
+            _id: null,
+            totalAmount: { $sum: '$totalAmount' },
+          },
+        },
+      ]);
 
       weeklyTrends.push({
         week: `Week of ${weekStart.toISOString().split('T')[0]}`,
-        revenue: (weeklySales && weeklySales.length > 0) ? (Number(weeklySales[0]?.totalAmount) || 0) : 0,
+        revenue: weeklySales.length > 0 ? Number(weeklySales[0].totalAmount) : 0,
       });
     }
 
@@ -291,20 +301,24 @@ export class AnalyticsService {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
 
-      const monthlySales = await this.saleModel.findAll({
-        where: {
-          createdAt: { [Op.gte]: monthStart, [Op.lt]: monthEnd },
-          status: 'COMPLETED',
+      const monthlySales = await this.saleModel.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: monthStart, $lt: monthEnd },
+            status: 'COMPLETED',
+          },
         },
-        attributes: [
-          [this.saleModel.sequelize.fn('SUM', this.saleModel.sequelize.col('total_amount')), 'totalAmount'],
-        ],
-        raw: true,
-      });
+        {
+          $group: {
+            _id: null,
+            totalAmount: { $sum: '$totalAmount' },
+          },
+        },
+      ]);
 
       monthlyTrends.push({
         month: monthStart.toISOString().substring(0, 7),
-        revenue: (monthlySales && monthlySales.length > 0) ? (Number(monthlySales[0]?.totalAmount) || 0) : 0,
+        revenue: monthlySales.length > 0 ? Number(monthlySales[0].totalAmount) : 0,
       });
     }
 

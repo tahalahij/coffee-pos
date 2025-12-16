@@ -1,14 +1,17 @@
 import { Module } from '@nestjs/common';
-import { SequelizeModule } from '@nestjs/sequelize';
-import { Sale } from '../sales/models/sale.model';
-import { Product } from '../products/models/product.model';
-import { SaleItem } from '../sales/models/sale-item.model';
-import { Customer } from '../customers/models/customer.model';
+import { MongooseModule } from '@nestjs/mongoose';
+import { Sale, SaleSchema } from '../sales/models/sale.model';
+import { Product, ProductSchema } from '../products/models/product.model';
+import { Customer, CustomerSchema } from '../customers/models/customer.model';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
 
 @Module({
-  imports: [SequelizeModule.forFeature([Sale, Product, SaleItem, Customer])],
+  imports: [MongooseModule.forFeature([
+    { name: Sale.name, schema: SaleSchema },
+    { name: Product.name, schema: ProductSchema },
+    { name: Customer.name, schema: CustomerSchema },
+  ])],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],
   exports: [AnalyticsService],

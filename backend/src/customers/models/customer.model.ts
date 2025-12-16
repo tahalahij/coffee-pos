@@ -1,7 +1,5 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Unique, CreatedAt, UpdatedAt, HasMany, Default } from 'sequelize-typescript';
-import { Sale } from '../../sales/models/sale.model';
-import { LoyaltyTransaction } from '../../loyalty/models/loyalty-transaction.model';
-import { CampaignParticipation } from '../../campaigns/models/campaign-participation.model';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
 export enum LoyaltyTier {
   BRONZE = 'BRONZE',
@@ -10,70 +8,65 @@ export enum LoyaltyTier {
   PLATINUM = 'PLATINUM'
 }
 
-@Table({
-  tableName: 'customers',
-  timestamps: true,
-  underscored: true,
-})
-export class Customer extends Model<Customer> {
-  @PrimaryKey
-  @AutoIncrement
-  @Column(DataType.INTEGER)
-  id: number;
+export enum Gender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+  OTHER = 'OTHER'
+}
 
-  @AllowNull(false)
-  @Column(DataType.STRING)
+export type CustomerDocument = Customer & Document;
+
+@Schema({
+  timestamps: true,
+  collection: 'customers',
+})
+export class Customer {
+  _id: Types.ObjectId;
+
+  @Prop({ required: true })
   name: string;
 
-  @Unique
-  @AllowNull(false)
-  @Column(DataType.STRING)
+  @Prop({ required: true, unique: true })
   phone: string;
 
-  @Unique
-  @Column(DataType.STRING)
+  @Prop({ unique: true, sparse: true })
   email: string;
 
-  @Column({ field: 'date_of_birth' })
+  @Prop({ enum: Gender })
+  sex: Gender;
+
+  @Prop()
   dateOfBirth: Date;
 
-  @Default(0)
-  @Column({ field: 'loyalty_points' })
+  @Prop({ default: 0 })
   loyaltyPoints: number;
 
-  @Default(0)
-  @Column({ field: 'total_spent' })
+  @Prop({ default: 0 })
   totalSpent: number;
 
-  @Default(0)
-  @Column({ field: 'visit_count' })
+  @Prop({ default: 0 })
   visitCount: number;
 
-  @Column({ field: 'last_visit' })
+  @Prop()
   lastVisit: Date;
 
-  @Default(LoyaltyTier.BRONZE)
-  @Column({ field: 'loyalty_tier' })
+  @Prop({ enum: LoyaltyTier, default: LoyaltyTier.BRONZE })
   loyaltyTier: LoyaltyTier;
 
-  @Default(true)
-  @Column({ field: 'is_active' })
+  @Prop({ default: true })
   isActive: boolean;
 
-  @CreatedAt
-  @Column({ field: 'created_at' })
   createdAt: Date;
-
-  @UpdatedAt
-  @Column({ field: 'updated_at' })
   updatedAt: Date;
-
-  @HasMany(() => Sale)
-  sales: Sale[];
-
-  @HasMany(() => LoyaltyTransaction)
-  loyaltyTransactions: LoyaltyTransaction[];
-
-  @HasMany(() => CampaignParticipation)
-  campaignParticipations: CampaignParticipation[];
 }
+
+export const CustomerSchema = SchemaFactory.createForClass(Customer);
+
+CustomerSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc: any, ret: any) => {
+    ret.id = ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});

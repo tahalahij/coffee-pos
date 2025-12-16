@@ -1,22 +1,18 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Customer } from '../customers/models/customer.model';
-import { Sale } from '../sales/models/sale.model';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Customer, CustomerDocument, LoyaltyTier } from '../customers/models/customer.model';
+import { Sale, SaleDocument } from '../sales/models/sale.model';
 
-// Define loyalty tier enum to replace Prisma's LoyaltyTier
-export enum LoyaltyTier {
-  BRONZE = 'BRONZE',
-  SILVER = 'SILVER',
-  GOLD = 'GOLD',
-  PLATINUM = 'PLATINUM',
-}
+// Re-export LoyaltyTier from customer model
+export { LoyaltyTier };
 
-// Simplified loyalty service that works with current schema
+// Simplified loyalty service that works with Mongoose
 @Injectable()
 export class LoyaltyService {
   constructor(
-    @InjectModel(Customer) private customerModel: typeof Customer,
-    @InjectModel(Sale) private saleModel: typeof Sale,
+    @InjectModel(Customer.name) private customerModel: Model<CustomerDocument>,
+    @InjectModel(Sale.name) private saleModel: Model<SaleDocument>,
   ) {}
 
   // Loyalty tier thresholds (in total spent)
@@ -36,7 +32,7 @@ export class LoyaltyService {
   };
 
   async getCustomerLoyaltyValue(customerId: string) {
-    const customer = await this.customerModel.findByPk(customerId);
+    const customer = await this.customerModel.findById(customerId).lean();
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
@@ -59,30 +55,27 @@ export class LoyaltyService {
     }
 
     // Get recent sales for this customer
-    const recentSales = await this.saleModel.findAll({
-      where: { customerId },
-      order: [['createdAt', 'DESC']],
-      limit: 5,
-      attributes: ['id', 'totalAmount', 'loyaltyPointsEarned', 'createdAt'],
-    });
+    const recentSales = await this.saleModel
+      .find({ customerId })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('totalAmount loyaltyPointsEarned createdAt')
+      .lean();
 
     // Calculate metrics
-    const totalOrders = await this.saleModel.count({
-      where: { customerId },
-    });
-
+    const totalOrders = await this.saleModel.countDocuments({ customerId });
     const avgOrderValue = totalOrders > 0 ? totalSpent / totalOrders : 0;
 
     // Calculate days since last purchase
     let daysSinceLastPurchase = null;
     if (customer.lastVisit) {
-      const diffTime = Math.abs(new Date().getTime() - customer.lastVisit.getTime());
+      const diffTime = Math.abs(new Date().getTime() - new Date(customer.lastVisit).getTime());
       daysSinceLastPurchase = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
 
     return {
       customer: {
-        id: customer.id,
+        id: customer._id,
         name: customer.name,
         loyaltyTier,
         loyaltyPoints,
@@ -100,25 +93,28 @@ export class LoyaltyService {
   }
 
   async getLoyaltyHistory(customerId: string) {
-    const customer = await this.customerModel.findByPk(customerId);
+    const customer = await this.customerModel.findById(customerId).lean();
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
 
     // Get all sales for this customer with loyalty points
-    const salesWithPoints = await this.saleModel.findAll({
-      where: { customerId },
-      order: [['createdAt', 'DESC']],
-      attributes: ['id', 'totalAmount', 'loyaltyPointsEarned', 'createdAt'],
-    });
+    const salesWithPoints = await this.saleModel
+      .find({ customerId })
+      .sort({ createdAt: -1 })
+      .select('totalAmount loyaltyPointsEarned createdAt')
+      .lean();
 
     // Calculate tier progression
     let runningTotal = 0;
-    const tierHistory = [];
+    const tierHistory: Array<{ tier: LoyaltyTier; achievedAt: Date; totalSpentAtTime: number }> = [];
     let currentTier = LoyaltyTier.BRONZE;
 
-    for (const sale of salesWithPoints.reverse()) {
+    // Reverse to process from oldest to newest
+    const chronologicalSales = [...salesWithPoints].reverse();
+
+    for (const sale of chronologicalSales) {
       runningTotal += Number(sale.totalAmount);
 
       // Check if tier should change
@@ -134,7 +130,7 @@ export class LoyaltyService {
       if (newTier !== currentTier) {
         tierHistory.push({
           tier: newTier,
-          achievedAt: sale.createdAt,
+          achievedAt: new Date(sale.createdAt),
           totalSpentAtTime: runningTotal,
         });
         currentTier = newTier;
@@ -143,15 +139,15 @@ export class LoyaltyService {
 
     return {
       customer: {
-        id: customer.id,
+        id: customer._id,
         name: customer.name,
         currentTier: customer.loyaltyTier,
         totalPoints: customer.loyaltyPoints,
         totalSpent: customer.totalSpent,
       },
       tierHistory,
-      pointsHistory: salesWithPoints.reverse().map(sale => ({
-        saleId: sale.id,
+      pointsHistory: chronologicalSales.reverse().map(sale => ({
+        saleId: sale._id,
         pointsEarned: sale.loyaltyPointsEarned,
         saleAmount: sale.totalAmount,
         earnedAt: sale.createdAt,
@@ -160,59 +156,68 @@ export class LoyaltyService {
   }
 
   async getLoyaltyStats() {
-    // Customer distribution by tier
-    const tierDistribution = await Promise.all([
-      this.customerModel.count({ where: { loyaltyTier: LoyaltyTier.BRONZE } }),
-      this.customerModel.count({ where: { loyaltyTier: LoyaltyTier.SILVER } }),
-      this.customerModel.count({ where: { loyaltyTier: LoyaltyTier.GOLD } }),
-      this.customerModel.count({ where: { loyaltyTier: LoyaltyTier.PLATINUM } }),
+    // Customer distribution by tier using aggregation
+    const tierDistributionResult = await this.customerModel.aggregate([
+      {
+        $group: {
+          _id: '$loyaltyTier',
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
-    // Average loyalty points by tier
-    const bronzeAvg = await this.customerModel.findAll({
-      where: { loyaltyTier: LoyaltyTier.BRONZE },
-      attributes: [[this.customerModel.sequelize.fn('AVG', this.customerModel.sequelize.col('loyaltyPoints')), 'avg']],
-      raw: true,
+    const tierDistribution = {
+      bronze: 0,
+      silver: 0,
+      gold: 0,
+      platinum: 0,
+    };
+
+    tierDistributionResult.forEach((item) => {
+      const tier = item._id?.toLowerCase();
+      if (tier && tierDistribution.hasOwnProperty(tier)) {
+        tierDistribution[tier as keyof typeof tierDistribution] = item.count;
+      }
     });
 
-    const silverAvg = await this.customerModel.findAll({
-      where: { loyaltyTier: LoyaltyTier.SILVER },
-      attributes: [[this.customerModel.sequelize.fn('AVG', this.customerModel.sequelize.col('loyaltyPoints')), 'avg']],
-      raw: true,
-    });
+    // Average loyalty points by tier using aggregation
+    const avgPointsResult = await this.customerModel.aggregate([
+      {
+        $group: {
+          _id: '$loyaltyTier',
+          avgPoints: { $avg: '$loyaltyPoints' },
+        },
+      },
+    ]);
 
-    const goldAvg = await this.customerModel.findAll({
-      where: { loyaltyTier: LoyaltyTier.GOLD },
-      attributes: [[this.customerModel.sequelize.fn('AVG', this.customerModel.sequelize.col('loyaltyPoints')), 'avg']],
-      raw: true,
-    });
+    const avgPointsByTier = {
+      bronze: 0,
+      silver: 0,
+      gold: 0,
+      platinum: 0,
+    };
 
-    const platinumAvg = await this.customerModel.findAll({
-      where: { loyaltyTier: LoyaltyTier.PLATINUM },
-      attributes: [[this.customerModel.sequelize.fn('AVG', this.customerModel.sequelize.col('loyaltyPoints')), 'avg']],
-      raw: true,
+    avgPointsResult.forEach((item) => {
+      const tier = item._id?.toLowerCase();
+      if (tier && avgPointsByTier.hasOwnProperty(tier)) {
+        avgPointsByTier[tier as keyof typeof avgPointsByTier] = item.avgPoints || 0;
+      }
     });
 
     // Total points distributed
-    const totalPointsResult = await this.customerModel.findAll({
-      attributes: [[this.customerModel.sequelize.fn('SUM', this.customerModel.sequelize.col('loyaltyPoints')), 'total']],
-      raw: true,
-    });
+    const totalPointsResult = await this.customerModel.aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$loyaltyPoints' },
+        },
+      },
+    ]);
 
     return {
-      tierDistribution: {
-        bronze: tierDistribution[0],
-        silver: tierDistribution[1],
-        gold: tierDistribution[2],
-        platinum: tierDistribution[3],
-      },
-      avgPointsByTier: {
-        bronze: Number((bronzeAvg[0] as any)?.avg) || 0,
-        silver: Number((silverAvg[0] as any)?.avg) || 0,
-        gold: Number((goldAvg[0] as any)?.avg) || 0,
-        platinum: Number((platinumAvg[0] as any)?.avg) || 0,
-      },
-      totalPointsDistributed: Number((totalPointsResult[0] as any)?.total) || 0,
+      tierDistribution,
+      avgPointsByTier,
+      totalPointsDistributed: totalPointsResult[0]?.total || 0,
     };
   }
 
@@ -241,31 +246,28 @@ export class LoyaltyService {
       saleId?: string;
     },
   ) {
-    const customer = await this.customerModel.findByPk(customerId);
+    const customer = await this.customerModel.findById(customerId);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
 
+    const newBalance = customer.loyaltyPoints + data.points;
+
     // Add points to customer's loyalty balance
-    await this.customerModel.update(
-      {
-        loyaltyPoints: customer.loyaltyPoints + data.points,
-      },
-      {
-        where: { id: customerId },
-      }
-    );
+    await this.customerModel.findByIdAndUpdate(customerId, {
+      loyaltyPoints: newBalance,
+    });
 
     return {
       success: true,
       message: `Added ${data.points} loyalty points`,
-      newBalance: customer.loyaltyPoints + data.points,
+      newBalance,
     };
   }
 
   async redeemLoyaltyPoints(customerId: string, points: number) {
-    const customer = await this.customerModel.findByPk(customerId);
+    const customer = await this.customerModel.findById(customerId);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
@@ -275,79 +277,69 @@ export class LoyaltyService {
       throw new BadRequestException('Insufficient loyalty points');
     }
 
+    const newBalance = customer.loyaltyPoints - points;
+
     // Deduct points from customer's loyalty balance
-    await this.customerModel.update(
-      {
-        loyaltyPoints: customer.loyaltyPoints - points,
-      },
-      {
-        where: { id: customerId },
-      }
-    );
+    await this.customerModel.findByIdAndUpdate(customerId, {
+      loyaltyPoints: newBalance,
+    });
 
     return {
       success: true,
       message: `Redeemed ${points} loyalty points`,
-      newBalance: customer.loyaltyPoints - points,
+      newBalance,
       redemptionValue: points * 0.01, // Assuming 1 point = $0.01
     };
   }
 
   async awardBonusPoints(customerId: string, points: number, reason: string) {
-    const customer = await this.customerModel.findByPk(customerId);
+    const customer = await this.customerModel.findById(customerId);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
 
+    const newBalance = customer.loyaltyPoints + points;
+
     // Add bonus points to customer's loyalty balance
-    await this.customerModel.update(
-      {
-        loyaltyPoints: customer.loyaltyPoints + points,
-      },
-      {
-        where: { id: customerId },
-      }
-    );
+    await this.customerModel.findByIdAndUpdate(customerId, {
+      loyaltyPoints: newBalance,
+    });
 
     return {
       success: true,
       message: `Awarded ${points} bonus points for: ${reason}`,
-      newBalance: customer.loyaltyPoints + points,
+      newBalance,
     };
   }
 
   async updateLoyaltyTier(customerId: string, totalSpent: number) {
-    const customer = await this.customerModel.findByPk(customerId);
+    const customer = await this.customerModel.findById(customerId);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
 
+    const previousTier = customer.loyaltyTier;
     const newTier = this.calculateLoyaltyTier(totalSpent);
 
     // Update customer's tier and total spent
-    await this.customerModel.update(
-      {
-        loyaltyTier: newTier,
-        totalSpent,
-      },
-      {
-        where: { id: customerId },
-      }
-    );
+    await this.customerModel.findByIdAndUpdate(customerId, {
+      loyaltyTier: newTier,
+      totalSpent,
+    });
 
     return {
       success: true,
       message: `Updated loyalty tier to ${newTier}`,
-      previousTier: customer.loyaltyTier,
+      previousTier,
       newTier,
       totalSpent,
     };
   }
 
   async calculateLoyaltyPoints(customerId: string, amount: number) {
-    const customer = await this.customerModel.findByPk(customerId);
+    const customer = await this.customerModel.findById(customerId).lean();
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
