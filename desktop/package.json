@@ -1,0 +1,17 @@
+{
+  "name": "cafe-pos-desktop",
+  "version": "1.0.0",
+  "description": "Cafe POS Desktop Application",
+  "private": true,
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:backend": "cd ../backend && npm run build",
+    "build:frontend": "cd ../frontend && npm run build",
+    "build:all": "npm run build:backend && npm run build:frontend && npm run build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.5.9"
+  }
+}

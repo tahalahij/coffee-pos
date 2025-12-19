@@ -6,7 +6,16 @@ const withPWA = require('next-pwa')({
   skipWaiting: true,
 })
 
+const isDesktopBuild = process.env.DESKTOP_BUILD === 'true';
+
 const nextConfig = {
+  // Static export for desktop app
+  ...(isDesktopBuild && {
+    output: 'export',
+    images: {
+      unoptimized: true,
+    },
+  }),
   images: {
     domains: ['localhost'],
   },
@@ -21,6 +30,6 @@ const nextConfig = {
 }
 
 module.exports =
-  process.env.NODE_ENV === 'production'
+  process.env.NODE_ENV === 'production' && !isDesktopBuild
     ? withPWA(nextConfig)
     : nextConfig;

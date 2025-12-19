@@ -4,6 +4,8 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  const isDesktopMode = process.env.DESKTOP_MODE === 'true';
+  
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS
@@ -24,8 +26,8 @@ async function bootstrap() {
   // API prefix
   app.setGlobalPrefix('api');
 
-  // Swagger documentation
-  if (process.env.NODE_ENV !== 'production') {
+  // Swagger documentation (disable in desktop mode for production builds)
+  if (process.env.NODE_ENV !== 'production' || isDesktopMode) {
     const config = new DocumentBuilder()
       .setTitle('Cafe POS API')
       .setDescription('Modern Point of Sale System API')
@@ -38,8 +40,15 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  console.log(`🚀 Server running on http://localhost:${port}`);
-  console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
+  
+  if (isDesktopMode) {
+    console.log(`🖥️  Desktop Mode: ENABLED`);
+    console.log(`🚀 Backend running on http://localhost:${port}`);
+    console.log(`📦 MongoDB: mongodb://127.0.0.1:27017/cafe_pos`);
+  } else {
+    console.log(`🚀 Server running on http://localhost:${port}`);
+    console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
+  }
 }
 
 bootstrap();

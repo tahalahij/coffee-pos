@@ -1,0 +1,14 @@
+# Tauri build outputs
+target/
+dist/
+
+# MongoDB binaries (too large for git, download separately)
+*.exe
+*.dll
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
