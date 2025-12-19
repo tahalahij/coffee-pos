@@ -9,13 +9,12 @@ IF %ERRORLEVEL% NEQ 0 (
     echo [INFO] Please install Node.js, then re-run this script.
     pause
     exit /b 1
-)
-
-REM === Install root dependencies ===
-echo [INFO] Installing root dependencies...
-npm install
-
-REM === Install backend dependencies ===
+    IF %ERRORLEVEL% NEQ 0 (
+        echo [ERROR] npm (Node.js) not found. Please install Node.js from https://nodejs.org/ and re-run this script.
+        echo Press any key to exit...
+        pause >nul
+        goto :eof
+    )
 cd backend
 echo [INFO] Installing backend dependencies...
 npm install
