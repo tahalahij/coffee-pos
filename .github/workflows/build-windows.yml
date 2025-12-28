@@ -59,6 +59,13 @@ jobs:
           cd desktop
           npm install
 
+      - name: Verify Tauri icons
+        run: |
+          cd desktop/src-tauri/icons
+          Write-Host "Verifying icon files..."
+          Get-ChildItem -Recurse
+        shell: pwsh
+
       - name: Build backend
         run: |
           cd backend

@@ -36,7 +36,9 @@
       "active": true,
       "targets": "all",
       "identifier": "com.cafepos.app",
-      "icon": [],
+      "icon": [
+        "icons/icon.ico"
+      ],
       "resources": [
         "resources/mongodb/*",
         "resources/backend/**/*"
