@@ -3,15 +3,6 @@
   <component name="CopilotDiffPersistence">
     <option name="pendingDiffs">
       <map>
-        <entry key="$PROJECT_DIR$/backend/src/categories/models/category.model.ts">
-          <value>
-            <PendingDiffInfo>
-              <option name="filePath" value="$PROJECT_DIR$/backend/src/categories/models/category.model.ts" />
-              <option name="originalContent" value="import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Unique, CreatedAt, UpdatedAt, HasMany } from 'sequelize-typescript';&#10;import { Product } from '../../products/models/product.model';&#10;&#10;@Table({&#10;  tableName: 'categories',&#10;  timestamps: true,&#10;  underscored: true,&#10;})&#10;export class Category extends Model&lt;Category&gt; {&#10;  @PrimaryKey&#10;  @AutoIncrement&#10;  @Column(DataType.INTEGER)&#10;  id: number;&#10;&#10;  @Unique&#10;  @AllowNull(false)&#10;  @Column(DataType.STRING)&#10;  name: string;&#10;&#10;  @Column(DataType.TEXT)&#10;  description: string;&#10;&#10;  @Default('#6B7280')&#10;  @Column(DataType.STRING)&#10;  color: string;&#10;&#10;  @Default(true)&#10;  @Column({ field: 'is_active' })&#10;  isActive: boolean;&#10;&#10;  @CreatedAt&#10;  @Column({ field: 'created_at' })&#10;  createdAt: Date;&#10;&#10;  @UpdatedAt&#10;  @Column({ field: 'updated_at' })&#10;  updatedAt: Date;&#10;&#10;  @HasMany(() =&gt; Product)&#10;  products: Product[];&#10;}&#10;" />
-              <option name="updatedContent" value="import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Unique, CreatedAt, UpdatedAt, HasMany, Default } from 'sequelize-typescript';&#10;import { Product } from '../../products/models/product.model';&#10;&#10;@Table({&#10;  tableName: 'categories',&#10;  timestamps: true,&#10;  underscored: true,&#10;})&#10;export class Category extends Model&lt;Category&gt; {&#10;  @PrimaryKey&#10;  @AutoIncrement&#10;  @Column(DataType.INTEGER)&#10;  id: number;&#10;&#10;  @Unique&#10;  @AllowNull(false)&#10;  @Column(DataType.STRING)&#10;  name: string;&#10;&#10;  @Column(DataType.TEXT)&#10;  description: string;&#10;&#10;  @Default('#6B7280')&#10;  @Column(DataType.STRING)&#10;  color: string;&#10;&#10;  @Default(true)&#10;  @Column({ field: 'is_active' })&#10;  isActive: boolean;&#10;&#10;  @CreatedAt&#10;  @Column({ field: 'created_at' })&#10;  createdAt: Date;&#10;&#10;  @UpdatedAt&#10;  @Column({ field: 'updated_at' })&#10;  updatedAt: Date;&#10;&#10;  @HasMany(() =&gt; Product)&#10;  products: Product[];&#10;}" />
-            </PendingDiffInfo>
-          </value>
-        </entry>
         <entry key="$PROJECT_DIR$/backend/src/prisma/prisma.service.ts">
           <value>
             <PendingDiffInfo>
