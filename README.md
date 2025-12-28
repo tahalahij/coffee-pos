@@ -36,9 +36,6 @@ Download the latest version and double-click to install:
 - **Internet:** Not required after installation (works offline)
 
 ---
-
-## ✨ What Can You Do With Cafe POS?
-
 ## ✨ What Can You Do With Cafe POS?
 
 ### 🛒 **Sales Management**
