@@ -45,7 +45,7 @@ fn log_message(log_file: &Arc<Mutex<Option<std::fs::File>>>, level: &str, messag
     }
 }
 
-fn show_error_dialog(app: &tauri::AppHandle, title: &str, message: &str) {
+fn show_error_dialog(_app: &tauri::AppHandle, title: &str, message: &str) {
     let _ = tauri::api::dialog::blocking::MessageDialogBuilder::new(title, message)
         .kind(tauri::api::dialog::MessageDialogKind::Error)
         .show();
@@ -57,6 +57,7 @@ fn main() {
     let mongodb_handle = app_state.mongodb_process.clone();
     let backend_handle = app_state.backend_process.clone();
     let log_handle = app_state.log_file.clone();
+    let log_handle_for_events = log_handle.clone();
 
     tauri::Builder::default()
         .setup(move |app| {
@@ -150,12 +151,12 @@ fn main() {
         })
         .on_window_event(move |event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event.event() {
-                log_message(&log_handle, "INFO", "Application closing...");
+                log_message(&log_handle_for_events, "INFO", "Application closing...");
                 
                 // Stop backend first
                 if let Ok(mut backend) = app_state.backend_process.lock() {
                     if let Some(mut child) = backend.take() {
-                        log_message(&log_handle, "INFO", "Stopping backend...");
+                        log_message(&log_handle_for_events, "INFO", "Stopping backend...");
                         let _ = child.kill();
                         let _ = child.wait();
                     }
@@ -164,14 +165,14 @@ fn main() {
                 // Then stop MongoDB
                 if let Ok(mut mongodb) = app_state.mongodb_process.lock() {
                     if let Some(mut child) = mongodb.take() {
-                        log_message(&log_handle, "INFO", "Stopping MongoDB...");
+                        log_message(&log_handle_for_events, "INFO", "Stopping MongoDB...");
                         let _ = child.kill();
                         thread::sleep(Duration::from_secs(2)); // Give time for clean shutdown
                         let _ = child.wait();
                     }
                 }
 
-                log_message(&log_handle, "INFO", "=== All services stopped ===");
+                log_message(&log_handle_for_events, "INFO", "=== All services stopped ===");
             }
         })
         .run(tauri::generate_context!())
@@ -194,7 +195,6 @@ fn start_mongodb(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std::fs::Fi
     log_message(log_file, "INFO", &format!("App data dir: {}", app_data_dir.display()));
 
     let mongod_path = resource_dir.join("mongodb").join("mongod.exe");
-    let config_path = resource_dir.join("mongodb").join("mongod.cfg");
     
     log_message(log_file, "INFO", &format!("Looking for mongod.exe at: {}", mongod_path.display()));
     
@@ -262,11 +262,6 @@ fn start_backend(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std::fs::Fi
         .path_resolver()
         .resource_dir()
         .ok_or("Failed to get resource directory")?;
-    
-    let app_data_dir = app
-        .path_resolver()
-        .app_data_dir()
-        .ok_or("Failed to get app data directory")?;
 
     // Backend should be bundled in resources/backend
     let backend_dir = resource_dir.join("backend");
