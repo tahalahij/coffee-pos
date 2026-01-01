@@ -1,53 +1,98 @@
-# MongoDB Binaries
+# MongoDB Binaries for Cafe POS Desktop
 
-This directory should contain the MongoDB binaries for Windows:
+This directory contains MongoDB binaries that are bundled with the desktop application.
 
-## Required Files
+## 🚀 Quick Setup (Automated)
 
-Download MongoDB Community Server for Windows from:
-https://www.mongodb.com/try/download/community
+Run the setup script from the `desktop` folder:
 
-Extract and place the following files here:
-
-```
-resources/mongodb/
-├── mongod.exe          # MongoDB server
-├── mongod.cfg          # Configuration file (already provided)
-└── README.md           # This file
+```bat
+cd desktop
+setup-mongodb.bat
 ```
 
-## Download Instructions
+This will automatically download and configure MongoDB binaries.
 
-1. Visit: https://www.mongodb.com/try/download/community
-2. Select:
-   - Version: 7.0.x (or latest stable)
-   - Platform: Windows
-   - Package: ZIP
-3. Download and extract the archive
-4. Copy `mongod.exe` from `bin/` to this directory
+## 📥 Manual Setup
 
-## Directory Structure
+If the automated setup doesn't work, follow these steps:
 
-The app will create these directories automatically at runtime:
+### 1. Download MongoDB
+
+Visit: https://www.mongodb.com/try/download/community
+
+**Select:**
+- **Version:** 7.0.x (latest stable)
+- **Platform:** Windows x64
+- **Package:** ZIP archive
+
+### 2. Extract and Copy
+
+1. Extract the downloaded ZIP file
+2. Navigate to the `bin` folder inside the extracted directory
+3. Copy **only** `mongod.exe` to this directory:
+   ```
+   desktop/src-tauri/resources/mongodb/mongod.exe
+   ```
+
+### 3. Verify
+
+- File should be approximately 50-100 MB
+- Full path: `desktop/src-tauri/resources/mongodb/mongod.exe`
+- Run `verify-build.bat` from the desktop folder to confirm
+
+## 📁 Runtime Structure
+
+When the application runs, it creates the following structure in the user's AppData folder:
 
 ```
-%APPDATA%/cafe-pos/
-├── data/
-│   ├── db/          # Database files
-│   └── logs/        # Log files
-└── mongodb.log
+%APPDATA%\Cafe POS\
+├── startup.log          # Application startup logs
+└── data\
+    ├── db\             # MongoDB database files
+    └── logs\
+        └── mongodb.log  # MongoDB logs
 ```
 
-## Verification
+## ⚙️ Configuration
 
-To verify MongoDB is bundled correctly:
-1. Check that `mongod.exe` exists in this directory
-2. File size should be approximately 50-100 MB
-3. Build the app and check that mongod.exe is included in the installer
+The `mongod.cfg` file in this directory contains the default MongoDB configuration. The application overrides these settings at runtime with:
 
-## Notes
+- **Port:** 27017
+- **Bind IP:** 127.0.0.1 (localhost only)
+- **Database Path:** `%APPDATA%\Cafe POS\data\db`
+- **Log Path:** `%APPDATA%\Cafe POS\data\logs\mongodb.log`
 
-- MongoDB binaries are **not** included in source control
-- Each developer must download and place them manually
-- The `.gitignore` file excludes `*.exe` files
-- CI/CD pipelines should download MongoDB as part of the build process
+## 🔍 Troubleshooting
+
+### mongod.exe not found error
+
+If you get this error when running the app:
+1. Check if `mongod.exe` exists in this directory
+2. Verify the file size is reasonable (50-100 MB)
+3. Try re-downloading from the official MongoDB website
+
+### Permission errors
+
+Run the application as Administrator on first launch to allow MongoDB to create necessary directories.
+
+### Port already in use
+
+If port 27017 is already taken:
+1. Close any other MongoDB instances
+2. Check Task Manager for `mongod.exe` processes
+3. Restart your computer if needed
+
+## 📝 Notes
+
+- **MongoDB binaries are NOT included in version control** (ignored by .gitignore)
+- Each developer/builder must download MongoDB separately
+- The application includes MongoDB 7.0.x compatibility
+- MongoDB runs only while the application is open
+- All data is stored locally on the user's machine
+
+## 🔗 Resources
+
+- [MongoDB Downloads](https://www.mongodb.com/try/download/community)
+- [MongoDB Documentation](https://docs.mongodb.com/)
+- [Tauri Documentation](https://tauri.app/)

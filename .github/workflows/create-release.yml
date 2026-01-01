@@ -14,9 +14,12 @@ on:
       draft:
         description: 'Create as draft release'
         required: false
-        default: true
+        default: false
+        type: boolean      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: false
         type: boolean
-
 permissions:
   contents: write
 
@@ -45,6 +48,7 @@ jobs:
             artifacts/**/*.msi
             artifacts/**/*.exe
           draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

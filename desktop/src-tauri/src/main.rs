@@ -28,6 +28,11 @@ impl AppState {
     }
 }
 
+// Helper to safely convert PathBuf to String
+fn path_to_string(path: &PathBuf) -> String {
+    path.to_string_lossy().to_string()
+}
+
 // Logging function that writes to both console and file
 fn log_message(log_file: &Arc<Mutex<Option<std::fs::File>>>, level: &str, message: &str) {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
@@ -80,7 +85,7 @@ fn main() {
                 Ok(file) => {
                     *log_handle.lock().unwrap() = Some(file);
                     log_message(&log_handle, "INFO", "=== Application Starting ===");
-                    log_message(&log_handle, "INFO", &format!("Log file: {}", log_path.display()));
+                    log_message(&log_handle, "INFO", &format!("Log file: {}", path_to_string(&log_path)));
                 }
                 Err(e) => {
                     eprintln!("Failed to create log file: {}", e);
@@ -191,20 +196,20 @@ fn start_mongodb(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std::fs::Fi
         .app_data_dir()
         .ok_or("Failed to get app data directory")?;
 
-    log_message(log_file, "INFO", &format!("Resource dir: {}", resource_dir.display()));
-    log_message(log_file, "INFO", &format!("App data dir: {}", app_data_dir.display()));
+    log_message(log_file, "INFO", &format!("Resource dir: {}", path_to_string(&resource_dir)));
+    log_message(log_file, "INFO", &format!("App data dir: {}", path_to_string(&app_data_dir)));
 
     let mongod_path = resource_dir.join("mongodb").join("mongod.exe");
     
-    log_message(log_file, "INFO", &format!("Looking for mongod.exe at: {}", mongod_path.display()));
+    log_message(log_file, "INFO", &format!("Looking for mongod.exe at: {}", path_to_string(&mongod_path)));
     
     // Check if mongod.exe exists
     if !mongod_path.exists() {
         let error = format!(
-            "mongod.exe not found at: {}\n\n\
+            "mongod.exe not found at:\n{}\n\n\
             Please make sure MongoDB is bundled correctly.\n\
             Expected location: desktop/src-tauri/resources/mongodb/mongod.exe",
-            mongod_path.display()
+            path_to_string(&mongod_path)
         );
         log_message(log_file, "ERROR", &error);
         return Err(error);
@@ -267,14 +272,14 @@ fn start_backend(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std::fs::Fi
     let backend_dir = resource_dir.join("backend");
     let main_js = backend_dir.join("dist").join("main.js");
 
-    log_message(log_file, "INFO", &format!("Looking for backend at: {}", main_js.display()));
+    log_message(log_file, "INFO", &format!("Looking for backend at: {}", path_to_string(&main_js)));
 
     if !main_js.exists() {
         let error = format!(
-            "Backend main.js not found at: {}\n\n\
+            "Backend main.js not found at:\n{}\n\n\
             Please make sure the backend is built and bundled correctly.\n\
             Expected: desktop/src-tauri/resources/backend/dist/main.js",
-            main_js.display()
+            path_to_string(&main_js)
         );
         log_message(log_file, "ERROR", &error);
         return Err(error);
