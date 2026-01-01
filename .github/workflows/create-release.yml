@@ -15,11 +15,13 @@ on:
         description: 'Create as draft release'
         required: false
         default: false
-        type: boolean      prerelease:
+        type: boolean
+      prerelease:
         description: 'Mark as pre-release'
         required: false
         default: false
         type: boolean
+
 permissions:
   contents: write
 
