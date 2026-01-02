@@ -44,7 +44,8 @@
         "icons/icon.ico"
       ],
       "resources": [
-        "resources/mongodb/*",
+        "resources/mongodb/mongod.exe",
+        "resources/mongodb/mongod.cfg",
         "resources/backend/**/*"
       ],
       "externalBin": [],

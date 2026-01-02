@@ -199,21 +199,46 @@ fn start_mongodb(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std::fs::Fi
     log_message(log_file, "INFO", &format!("Resource dir: {}", path_to_string(&resource_dir)));
     log_message(log_file, "INFO", &format!("App data dir: {}", path_to_string(&app_data_dir)));
 
-    let mongod_path = resource_dir.join("mongodb").join("mongod.exe");
+    // Try multiple possible locations for mongod.exe
+    let possible_paths = vec![
+        resource_dir.join("mongodb").join("mongod.exe"),
+        resource_dir.join("mongod.exe"),
+    ];
     
-    log_message(log_file, "INFO", &format!("Looking for mongod.exe at: {}", path_to_string(&mongod_path)));
-    
-    // Check if mongod.exe exists
-    if !mongod_path.exists() {
-        let error = format!(
-            "mongod.exe not found at:\n{}\n\n\
-            Please make sure MongoDB is bundled correctly.\n\
-            Expected location: desktop/src-tauri/resources/mongodb/mongod.exe",
-            path_to_string(&mongod_path)
-        );
-        log_message(log_file, "ERROR", &error);
-        return Err(error);
+    let mut mongod_path = None;
+    for path in &possible_paths {
+        log_message(log_file, "INFO", &format!("Checking for mongod.exe at: {}", path.display()));
+        if path.exists() {
+            mongod_path = Some(path.clone());
+            log_message(log_file, "INFO", &format!("Found mongod.exe at: {}", path.display()));
+            break;
+        }
     }
+    
+    let mongod_path = match mongod_path {
+        Some(path) => path,
+        None => {
+            // List what's actually in the resource directory
+            let mut dir_contents = String::new();
+            if let Ok(entries) = std::fs::read_dir(&resource_dir) {
+                for entry in entries.flatten() {
+                    dir_contents.push_str(&format!("  - {}\n", entry.path().display()));
+                }
+            }
+            
+            let error = format!(
+                "mongod.exe not found in any expected location.\n\n\
+                Searched locations:\n{}\n\n\
+                Resource directory contents:\n{}\n\n\
+                Please make sure MongoDB is bundled correctly.\n\
+                Expected location: desktop/src-tauri/resources/mongodb/mongod.exe",
+                possible_paths.iter().map(|p| format!("  - {}", p.display())).collect::<Vec<_>>().join("\n"),
+                dir_contents
+            );
+            log_message(log_file, "ERROR", &error);
+            return Err(error);
+        }
+    };
     
     log_message(log_file, "INFO", "mongod.exe found!");
     

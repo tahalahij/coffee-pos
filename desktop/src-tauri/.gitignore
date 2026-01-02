@@ -5,6 +5,8 @@ dist/
 # MongoDB binaries (too large for git, download separately)
 *.exe
 *.dll
+resources/mongodb/mongod
+resources/mongodb/mongod.exe
 
 # Logs
 *.log
