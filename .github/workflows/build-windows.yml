@@ -119,6 +119,31 @@ jobs:
           Get-ChildItem -Path "desktop/src-tauri/resources/mongodb"
         shell: pwsh
 
+      - name: Update version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          Write-Host "Updating version to: $version"
+          
+          # Update tauri.conf.json
+          $configPath = "desktop/src-tauri/tauri.conf.json"
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
+          $config.package.version = $version
+          $config | ConvertTo-Json -Depth 100 | Set-Content $configPath
+          
+          # Update desktop/package.json
+          $desktopPkg = Get-Content "desktop/package.json" -Raw | ConvertFrom-Json
+          $desktopPkg.version = $version
+          $desktopPkg | ConvertTo-Json -Depth 100 | Set-Content "desktop/package.json"
+          
+          # Update root package.json
+          $rootPkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+          $rootPkg.version = $version
+          $rootPkg | ConvertTo-Json -Depth 100 | Set-Content "package.json"
+          
+          Write-Host "Updated all version files to $version"
+        shell: pwsh
+
       - name: Build Tauri app
         run: |
           cd desktop
