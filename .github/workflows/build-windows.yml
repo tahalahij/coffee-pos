@@ -187,14 +187,50 @@ jobs:
         with:
           path: artifacts
 
+      - name: Display artifacts
+        run: |
+          echo "Downloaded artifacts for release:"
+          ls -R artifacts/
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
           files: |
-            artifacts/**/*.msi
-            artifacts/**/*.exe
+            artifacts/windows-msi-installer/*.msi
+            artifacts/windows-nsis-installer/*.exe
           draft: false
           prerelease: false
           generate_release_notes: true
+          body: |
+            ## Cafe POS Desktop Application - ${{ github.ref_name }}
+            
+            ### 📦 Installation Files
+            
+            Download the installer for Windows:
+            - **MSI Installer** (Recommended for system-wide installation)
+            - **NSIS Installer** (Portable setup)
+            
+            ### ✨ What's Changed
+            
+            See the automatically generated release notes below.
+            
+            ### 🚀 Installation Instructions
+            
+            1. Download the MSI or NSIS installer
+            2. Run the installer
+            3. Follow the setup wizard
+            4. Launch Cafe POS from your Start Menu
+            
+            ### ⚙️ Requirements
+            
+            - Windows 10/11 (64-bit)
+            - 4 GB RAM minimum
+            - 500 MB free disk space
+            
+            ---
+            
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v1.0.0...${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
