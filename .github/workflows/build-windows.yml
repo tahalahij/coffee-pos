@@ -102,21 +102,71 @@ jobs:
 
       - name: Download MongoDB
         run: |
-          $mongoUrl = "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.14-signed.msi"
-          $mongoZipUrl = "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.14.zip"
+          # MongoDB 7.0.x download - using the correct URL format
+          $mongoZipUrl = "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.16.zip"
           
-          Write-Host "Downloading MongoDB..."
-          Invoke-WebRequest -Uri $mongoZipUrl -OutFile mongodb.zip
+          Write-Host "Downloading MongoDB from: $mongoZipUrl"
+          
+          # Download with retry logic
+          $maxRetries = 3
+          $retryCount = 0
+          $success = $false
+          
+          while (-not $success -and $retryCount -lt $maxRetries) {
+            try {
+              Invoke-WebRequest -Uri $mongoZipUrl -OutFile mongodb.zip -TimeoutSec 300
+              $success = $true
+            } catch {
+              $retryCount++
+              Write-Host "Download attempt $retryCount failed: $_"
+              if ($retryCount -lt $maxRetries) {
+                Start-Sleep -Seconds 10
+              }
+            }
+          }
+          
+          if (-not $success) {
+            Write-Error "Failed to download MongoDB after $maxRetries attempts"
+            exit 1
+          }
+          
+          Write-Host "Download complete. File size: $((Get-Item mongodb.zip).Length / 1MB) MB"
           
           Write-Host "Extracting MongoDB..."
-          Expand-Archive -Path mongodb.zip -DestinationPath mongodb-extract
+          Expand-Archive -Path mongodb.zip -DestinationPath mongodb-extract -Force
           
-          Write-Host "Copying mongod.exe..."
+          Write-Host "Contents of mongodb-extract:"
+          Get-ChildItem -Path mongodb-extract -Recurse -Depth 2 | Select-Object FullName
+          
+          Write-Host "Looking for mongod.exe..."
           $mongodPath = Get-ChildItem -Path mongodb-extract -Recurse -Filter "mongod.exe" | Select-Object -First 1
-          Copy-Item $mongodPath.FullName -Destination "desktop/src-tauri/resources/mongodb/mongod.exe"
           
-          Write-Host "MongoDB setup complete"
-          Get-ChildItem -Path "desktop/src-tauri/resources/mongodb"
+          if (-not $mongodPath) {
+            Write-Error "mongod.exe not found in extracted archive!"
+            exit 1
+          }
+          
+          Write-Host "Found mongod.exe at: $($mongodPath.FullName)"
+          
+          # Ensure target directory exists
+          $targetDir = "desktop/src-tauri/resources/mongodb"
+          if (-not (Test-Path $targetDir)) {
+            New-Item -ItemType Directory -Path $targetDir -Force
+          }
+          
+          Copy-Item $mongodPath.FullName -Destination "$targetDir/mongod.exe" -Force
+          
+          Write-Host "MongoDB setup complete. Verifying..."
+          $finalPath = "$targetDir/mongod.exe"
+          if (Test-Path $finalPath) {
+            $fileSize = (Get-Item $finalPath).Length / 1MB
+            Write-Host "SUCCESS: mongod.exe copied successfully ($fileSize MB)"
+          } else {
+            Write-Error "FAILED: mongod.exe was not copied correctly"
+            exit 1
+          }
+          
+          Get-ChildItem -Path $targetDir
         shell: pwsh
 
       - name: Update version from tag
@@ -142,6 +192,43 @@ jobs:
           $rootPkg | ConvertTo-Json -Depth 100 | Set-Content "package.json"
           
           Write-Host "Updated all version files to $version"
+        shell: pwsh
+
+      - name: Verify all resources before build
+        run: |
+          Write-Host "=== Verifying Resources Before Build ==="
+          
+          # Check MongoDB
+          $mongodPath = "desktop/src-tauri/resources/mongodb/mongod.exe"
+          if (Test-Path $mongodPath) {
+            $size = (Get-Item $mongodPath).Length / 1MB
+            Write-Host "✓ MongoDB: mongod.exe found ($([math]::Round($size, 2)) MB)"
+          } else {
+            Write-Error "✗ MongoDB: mongod.exe NOT FOUND at $mongodPath"
+            exit 1
+          }
+          
+          # Check Backend
+          $backendMain = "desktop/src-tauri/resources/backend/dist/main.js"
+          if (Test-Path $backendMain) {
+            Write-Host "✓ Backend: dist/main.js found"
+          } else {
+            Write-Error "✗ Backend: dist/main.js NOT FOUND"
+            exit 1
+          }
+          
+          # Check node_modules
+          $nodeModules = "desktop/src-tauri/resources/backend/node_modules"
+          if (Test-Path $nodeModules) {
+            $count = (Get-ChildItem $nodeModules -Directory).Count
+            Write-Host "✓ Backend: node_modules found ($count packages)"
+          } else {
+            Write-Error "✗ Backend: node_modules NOT FOUND"
+            exit 1
+          }
+          
+          Write-Host ""
+          Write-Host "=== All resources verified successfully ==="
         shell: pwsh
 
       - name: Build Tauri app
