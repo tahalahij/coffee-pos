@@ -55,6 +55,13 @@ jobs:
         with:
           workspaces: './desktop/src-tauri -> target'
 
+      - name: Cache MongoDB
+        id: cache-mongodb
+        uses: actions/cache@v4
+        with:
+          path: mongodb-cache/mongod.exe
+          key: mongodb-windows-x86_64-8.2.3
+
       - name: Install dependencies (root)
         run: npm install
 
@@ -102,8 +109,30 @@ jobs:
 
       - name: Download MongoDB
         run: |
-          # MongoDB 7.0.x download - using the correct URL format
-          $mongoZipUrl = "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.16.zip"
+          $targetDir = "desktop/src-tauri/resources/mongodb"
+          $targetPath = "$targetDir/mongod.exe"
+          $cacheDir = "mongodb-cache"
+          $cachePath = "$cacheDir/mongod.exe"
+          
+          # Ensure target directory exists
+          if (-not (Test-Path $targetDir)) {
+            New-Item -ItemType Directory -Path $targetDir -Force
+          }
+          
+          # Check if we have a cached version
+          if (Test-Path $cachePath) {
+            Write-Host "Using cached MongoDB..."
+            Copy-Item $cachePath -Destination $targetPath -Force
+            $fileSize = (Get-Item $targetPath).Length / 1MB
+            Write-Host "SUCCESS: mongod.exe copied from cache ($([math]::Round($fileSize, 2)) MB)"
+            Get-ChildItem -Path $targetDir
+            exit 0
+          }
+          
+          Write-Host "No cache found, downloading MongoDB..."
+          
+          # MongoDB 8.2.3 download
+          $mongoZipUrl = "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-8.2.3.zip"
           
           Write-Host "Downloading MongoDB from: $mongoZipUrl"
           
@@ -148,19 +177,18 @@ jobs:
           
           Write-Host "Found mongod.exe at: $($mongodPath.FullName)"
           
-          # Ensure target directory exists
-          $targetDir = "desktop/src-tauri/resources/mongodb"
-          if (-not (Test-Path $targetDir)) {
-            New-Item -ItemType Directory -Path $targetDir -Force
-          }
+          Copy-Item $mongodPath.FullName -Destination $targetPath -Force
           
-          Copy-Item $mongodPath.FullName -Destination "$targetDir/mongod.exe" -Force
+          # Also save to cache directory for future runs
+          if (-not (Test-Path $cacheDir)) {
+            New-Item -ItemType Directory -Path $cacheDir -Force
+          }
+          Copy-Item $mongodPath.FullName -Destination $cachePath -Force
           
           Write-Host "MongoDB setup complete. Verifying..."
-          $finalPath = "$targetDir/mongod.exe"
-          if (Test-Path $finalPath) {
-            $fileSize = (Get-Item $finalPath).Length / 1MB
-            Write-Host "SUCCESS: mongod.exe copied successfully ($fileSize MB)"
+          if (Test-Path $targetPath) {
+            $fileSize = (Get-Item $targetPath).Length / 1MB
+            Write-Host "SUCCESS: mongod.exe copied successfully ($([math]::Round($fileSize, 2)) MB)"
           } else {
             Write-Error "FAILED: mongod.exe was not copied correctly"
             exit 1
