@@ -200,8 +200,13 @@ fn start_mongodb(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std::fs::Fi
     log_message(log_file, "INFO", &format!("App data dir: {}", path_to_string(&app_data_dir)));
 
     // Try multiple possible locations for mongod.exe
+    // Tauri bundles resources with their relative path structure preserved
     let possible_paths = vec![
+        // When bundled with "resources/mongodb/mongod.exe" in tauri.conf.json
+        resource_dir.join("resources").join("mongodb").join("mongod.exe"),
+        // Alternative: directly in mongodb folder
         resource_dir.join("mongodb").join("mongod.exe"),
+        // Fallback: directly in resource dir
         resource_dir.join("mongod.exe"),
     ];
     
@@ -218,21 +223,33 @@ fn start_mongodb(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std::fs::Fi
     let mongod_path = match mongod_path {
         Some(path) => path,
         None => {
-            // List what's actually in the resource directory
+            // List what's actually in the resource directory (recursively up to 2 levels)
             let mut dir_contents = String::new();
-            if let Ok(entries) = std::fs::read_dir(&resource_dir) {
-                for entry in entries.flatten() {
-                    dir_contents.push_str(&format!("  - {}\n", entry.path().display()));
+            fn list_dir_recursive(path: &PathBuf, prefix: &str, depth: u32, output: &mut String) {
+                if depth > 2 { return; }
+                if let Ok(entries) = std::fs::read_dir(path) {
+                    for entry in entries.flatten() {
+                        let entry_path = entry.path();
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        if entry_path.is_dir() {
+                            output.push_str(&format!("{}[{}]/\n", prefix, name));
+                            list_dir_recursive(&entry_path, &format!("{}  ", prefix), depth + 1, output);
+                        } else {
+                            output.push_str(&format!("{}{}\n", prefix, name));
+                        }
+                    }
                 }
             }
+            list_dir_recursive(&resource_dir, "  ", 0, &mut dir_contents);
             
             let error = format!(
                 "mongod.exe not found in any expected location.\n\n\
                 Searched locations:\n{}\n\n\
-                Resource directory contents:\n{}\n\n\
+                Resource directory ({}):\n{}\n\n\
                 Please make sure MongoDB is bundled correctly.\n\
                 Expected location: desktop/src-tauri/resources/mongodb/mongod.exe",
                 possible_paths.iter().map(|p| format!("  - {}", p.display())).collect::<Vec<_>>().join("\n"),
+                path_to_string(&resource_dir),
                 dir_contents
             );
             log_message(log_file, "ERROR", &error);
@@ -294,21 +311,42 @@ fn start_backend(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std::fs::Fi
         .ok_or("Failed to get resource directory")?;
 
     // Backend should be bundled in resources/backend
-    let backend_dir = resource_dir.join("backend");
-    let main_js = backend_dir.join("dist").join("main.js");
-
-    log_message(log_file, "INFO", &format!("Looking for backend at: {}", path_to_string(&main_js)));
-
-    if !main_js.exists() {
+    // Try multiple possible locations (Tauri preserves the relative path structure)
+    let possible_backend_dirs = vec![
+        resource_dir.join("resources").join("backend"),
+        resource_dir.join("backend"),
+    ];
+    
+    let mut backend_dir = None;
+    let mut main_js = None;
+    
+    for dir in &possible_backend_dirs {
+        let js_path = dir.join("dist").join("main.js");
+        log_message(log_file, "INFO", &format!("Checking for backend at: {}", path_to_string(&js_path)));
+        if js_path.exists() {
+            backend_dir = Some(dir.clone());
+            main_js = Some(js_path);
+            log_message(log_file, "INFO", &format!("Found backend at: {}", path_to_string(dir)));
+            break;
+        }
+    }
+    
+    let backend_dir = backend_dir.ok_or_else(|| {
         let error = format!(
-            "Backend main.js not found at:\n{}\n\n\
+            "Backend main.js not found in any expected location.\n\n\
+            Searched locations:\n{}\n\n\
             Please make sure the backend is built and bundled correctly.\n\
             Expected: desktop/src-tauri/resources/backend/dist/main.js",
-            path_to_string(&main_js)
+            possible_backend_dirs.iter()
+                .map(|p| format!("  - {}", p.join("dist").join("main.js").display()))
+                .collect::<Vec<_>>()
+                .join("\n")
         );
         log_message(log_file, "ERROR", &error);
-        return Err(error);
-    }
+        error
+    })?;
+    
+    let main_js = main_js.unwrap();
     
     log_message(log_file, "INFO", "Backend main.js found!");
 
