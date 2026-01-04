@@ -54,16 +54,6 @@ export default function CategoriesContent() {
     )
   }
 
-  if (error && categories.length === 0) {
-    return (
-      <div className="p-6 space-y-6 h-full overflow-y-auto">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg text-red-500">{error}</div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="p-6 space-y-6 h-full overflow-y-auto bg-gradient-to-br from-slate-50 to-violet-50">
       {/* Header */}

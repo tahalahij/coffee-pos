@@ -358,6 +358,7 @@ jobs:
             Download the installer for Windows:
             - **MSI Installer** (Recommended for system-wide installation)
             - **NSIS Installer** (Portable setup)
+            - **Standalone Executable** (No installation required)
             
             ### ✨ What's Changed
             
@@ -378,6 +379,6 @@ jobs:
             
             ---
             
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v1.0.0...${{ github.ref_name }}
+            **Full Changelog**: https://github.com/${{ github.repository }}/releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
