@@ -26,10 +26,25 @@ export const useCategoryStore = create<CategoryStore>()(
           set({ loading: true, error: null })
           const categories = await categoryService.getAll()
           set({ categories, loading: false })
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error fetching categories:', error)
-          set({ error: 'Failed to fetch categories', loading: false })
-          toast.error('Failed to fetch categories')
+          // Check if it's a connection error (backend not ready) - don't show toast
+          const isConnectionError = error?.code === 'ERR_NETWORK' || 
+            error?.message?.includes('fetch') || 
+            error?.message?.includes('Network') ||
+            error?.message?.includes('ECONNREFUSED')
+          
+          // Keep existing categories if we have them, otherwise set empty array
+          set(state => ({ 
+            categories: state.categories.length > 0 ? state.categories : [],
+            error: isConnectionError ? null : 'Failed to fetch categories', 
+            loading: false 
+          }))
+          
+          // Only show toast for non-connection errors
+          if (!isConnectionError) {
+            toast.error('Failed to fetch categories')
+          }
         }
       },
 

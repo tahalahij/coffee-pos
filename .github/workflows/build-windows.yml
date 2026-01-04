@@ -216,21 +216,39 @@ jobs:
           $version = "${{ github.ref_name }}" -replace '^v', ''
           Write-Host "Updating version to: $version"
           
-          # Update tauri.conf.json
+          # Update tauri.conf.json using regex for reliability
           $configPath = "desktop/src-tauri/tauri.conf.json"
-          $config = Get-Content $configPath -Raw | ConvertFrom-Json
-          $config.package.version = $version
-          $config | ConvertTo-Json -Depth 100 | Set-Content $configPath
+          $configContent = Get-Content $configPath -Raw
+          $configContent = $configContent -replace '"version":\s*"[^"]+"', ('"version": "' + $version + '"')
+          Set-Content -Path $configPath -Value $configContent -NoNewline
+          Write-Host "Updated tauri.conf.json"
+          
+          # Update Cargo.toml version (critical for exe filename)
+          $cargoPath = "desktop/src-tauri/Cargo.toml"
+          $cargoContent = Get-Content $cargoPath -Raw
+          $cargoContent = $cargoContent -replace 'version\s*=\s*"[^"]+"', ('version = "' + $version + '"')
+          Set-Content -Path $cargoPath -Value $cargoContent -NoNewline
+          Write-Host "Updated Cargo.toml"
           
           # Update desktop/package.json
-          $desktopPkg = Get-Content "desktop/package.json" -Raw | ConvertFrom-Json
-          $desktopPkg.version = $version
-          $desktopPkg | ConvertTo-Json -Depth 100 | Set-Content "desktop/package.json"
+          $desktopPkgPath = "desktop/package.json"
+          $desktopPkgContent = Get-Content $desktopPkgPath -Raw
+          $desktopPkgContent = $desktopPkgContent -replace '"version":\s*"[^"]+"', ('"version": "' + $version + '"')
+          Set-Content -Path $desktopPkgPath -Value $desktopPkgContent -NoNewline
+          Write-Host "Updated desktop/package.json"
           
           # Update root package.json
-          $rootPkg = Get-Content "package.json" -Raw | ConvertFrom-Json
-          $rootPkg.version = $version
-          $rootPkg | ConvertTo-Json -Depth 100 | Set-Content "package.json"
+          $rootPkgPath = "package.json"
+          $rootPkgContent = Get-Content $rootPkgPath -Raw
+          $rootPkgContent = $rootPkgContent -replace '"version":\s*"[^"]+"', ('"version": "' + $version + '"')
+          Set-Content -Path $rootPkgPath -Value $rootPkgContent -NoNewline
+          Write-Host "Updated root package.json"
+          
+          Write-Host "=== Verification ==="
+          Write-Host "tauri.conf.json version:"
+          Select-String -Path $configPath -Pattern '"version"' | Select-Object -First 1
+          Write-Host "Cargo.toml version:"
+          Select-String -Path $cargoPath -Pattern '^version' | Select-Object -First 1
           
           Write-Host "Updated all version files to $version"
         shell: pwsh

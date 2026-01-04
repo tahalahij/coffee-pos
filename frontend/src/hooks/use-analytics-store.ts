@@ -35,10 +35,35 @@ export const useAnalyticsStore = create<AnalyticsStore>((set, get) => ({
       set({ loading: true, error: null })
       const stats = await analyticsService.getDashboardStats()
       set({ dashboardStats: stats, loading: false })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching dashboard stats:', error)
-      set({ error: 'Failed to fetch dashboard statistics', loading: false })
-      toast.error('Failed to fetch dashboard statistics')
+      // Check if it's a connection error (backend not ready) - don't show toast
+      const isConnectionError = error?.code === 'ERR_NETWORK' || 
+        error?.message?.includes('fetch') || 
+        error?.message?.includes('Network') ||
+        error?.message?.includes('ECONNREFUSED')
+      
+      // Set default empty stats instead of error state
+      const defaultStats = {
+        todaySales: 0,
+        todayOrders: 0,
+        monthSales: 0,
+        monthOrders: 0,
+        totalProducts: 0,
+        lowStockProducts: 0,
+        recentSales: []
+      }
+      
+      set(state => ({ 
+        dashboardStats: state.dashboardStats || defaultStats,
+        error: isConnectionError ? null : 'Failed to fetch dashboard statistics', 
+        loading: false 
+      }))
+      
+      // Only show toast for non-connection errors
+      if (!isConnectionError) {
+        toast.error('Failed to fetch dashboard statistics')
+      }
     }
   },
 

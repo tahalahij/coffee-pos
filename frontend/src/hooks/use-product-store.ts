@@ -28,10 +28,25 @@ export const useProductStore = create<ProductStore>()(
           set({ loading: true, error: null })
           const products = await productService.getAll()
           set({ products, loading: false })
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error fetching products:', error)
-          set({ error: 'Failed to fetch products', loading: false })
-          toast.error('Failed to fetch products')
+          // Check if it's a connection error (backend not ready) - don't show toast
+          const isConnectionError = error?.code === 'ERR_NETWORK' || 
+            error?.message?.includes('fetch') || 
+            error?.message?.includes('Network') ||
+            error?.message?.includes('ECONNREFUSED')
+          
+          // Keep existing products if we have them, otherwise set empty array
+          set(state => ({ 
+            products: state.products.length > 0 ? state.products : [],
+            error: isConnectionError ? null : 'Failed to fetch products', 
+            loading: false 
+          }))
+          
+          // Only show toast for non-connection errors
+          if (!isConnectionError) {
+            toast.error('Failed to fetch products')
+          }
         }
       },
 

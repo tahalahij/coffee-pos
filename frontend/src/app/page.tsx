@@ -11,6 +11,7 @@ import SalesContent from '@/components/sales/sales-content'
 import PurchasesContent from '@/components/purchases/purchases-content'
 import AnalyticsContent from '@/components/analytics/analytics-content'
 import SettingsContent from '@/components/settings/settings-content'
+import { DebugConsole } from '@/components/debug/debug-console'
 
 export type TabType = 'pos' | 'dashboard' | 'products' | 'categories' | 'discounts' | 'sales' | 'purchases' | 'analytics' | 'settings'
 
@@ -48,6 +49,7 @@ export default function HomePage() {
       <main className="flex-1 overflow-hidden">
         {renderContent()}
       </main>
+      <DebugConsole />
     </div>
   )
 }
