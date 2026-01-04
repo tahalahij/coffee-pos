@@ -346,6 +346,7 @@ jobs:
           files: |
             artifacts/windows-msi-installer/*.msi
             artifacts/windows-nsis-installer/*.exe
+            artifacts/windows-executable/*.exe
           draft: false
           prerelease: false
           generate_release_notes: true
