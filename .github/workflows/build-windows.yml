@@ -224,11 +224,13 @@ jobs:
           Write-Host "Updated tauri.conf.json"
           
           # Update Cargo.toml version (critical for exe filename)
+          # Only replace the version in the [package] section to avoid touching dependency versions.
           $cargoPath = "desktop/src-tauri/Cargo.toml"
           $cargoContent = Get-Content $cargoPath -Raw
-          $cargoContent = $cargoContent -replace 'version\s*=\s*"[^"]+"', ('version = "' + $version + '"')
-          Set-Content -Path $cargoPath -Value $cargoContent -NoNewline
-          Write-Host "Updated Cargo.toml"
+          $packagePattern = '(?s)(\[package\].*?\n\s*version\s*=\s*")[^"]+("\s*)'
+          $updatedCargo = [regex]::Replace($cargoContent, $packagePattern, { param($m) $m.Groups[1].Value + $version + $m.Groups[2].Value }, 1)
+          Set-Content -Path $cargoPath -Value $updatedCargo -NoNewline
+          Write-Host "Updated Cargo.toml [package] version"
           
           # Update desktop/package.json
           $desktopPkgPath = "desktop/package.json"
