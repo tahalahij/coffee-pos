@@ -70,6 +70,7 @@ jobs:
         with:
           path: |
             ~\AppData\Local\Mozilla\sccache\cache
+            C:\Users\runneradmin\AppData\Local\Mozilla\sccache\cache
           key: sccache-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: |
             sccache-${{ runner.os }}-
@@ -87,8 +88,9 @@ jobs:
           path: |
             ~\AppData\Local\tauri\WixTools
             C:\Users\runneradmin\AppData\Local\tauri\WixTools
-          key: wix-toolset-${{ runner.os }}-wix314
+          key: wix-toolset-${{ runner.os }}-v314-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: |
+            wix-toolset-${{ runner.os }}-v314-
             wix-toolset-${{ runner.os }}-
 
       - name: Cache Tauri NSIS
@@ -97,8 +99,9 @@ jobs:
           path: |
             ~\AppData\Local\tauri\NSIS
             C:\Users\runneradmin\AppData\Local\tauri\NSIS
-          key: nsis-${{ runner.os }}-nsis3
+          key: nsis-3-tauri-utils-0.4.1-${{ runner.os }}
           restore-keys: |
+            nsis-3-tauri-utils-
             nsis-${{ runner.os }}-
 
       - name: Install dependencies (parallel)
@@ -107,40 +110,60 @@ jobs:
           $jobs = @()
           
           # Root dependencies
-          $jobs += Start-Job -ScriptBlock { 
+          $jobs += Start-Job -Name "Root" -ScriptBlock { 
             Set-Location $using:PWD
-            npm install
+            npm install 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "Root npm install failed with exit code $LASTEXITCODE" }
           }
           
           # Backend dependencies
-          $jobs += Start-Job -ScriptBlock { 
+          $jobs += Start-Job -Name "Backend" -ScriptBlock { 
             Set-Location $using:PWD\backend
-            npm install
+            npm install 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "Backend npm install failed with exit code $LASTEXITCODE" }
           }
           
           # Frontend dependencies
-          $jobs += Start-Job -ScriptBlock { 
+          $jobs += Start-Job -Name "Frontend" -ScriptBlock { 
             Set-Location $using:PWD\frontend
-            npm install
+            npm install 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "Frontend npm install failed with exit code $LASTEXITCODE" }
           }
           
           # Desktop dependencies
-          $jobs += Start-Job -ScriptBlock { 
+          $jobs += Start-Job -Name "Desktop" -ScriptBlock { 
             Set-Location $using:PWD\desktop
-            npm install
+            npm install 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "Desktop npm install failed with exit code $LASTEXITCODE" }
           }
           
           # Wait for all jobs to complete and check results
+          $failed = $false
           $jobs | ForEach-Object {
-            $result = $_ | Wait-Job | Receive-Job
-            if ($_.State -eq 'Failed') {
-              Write-Error "Job failed: $($_.ChildJobs[0].JobStateInfo.Reason)"
-              exit 1
+            $job = $_
+            $result = $job | Wait-Job
+            $output = Receive-Job -Job $job
+            
+            Write-Host "`n=== Output from $($job.Name) ==="
+            Write-Host $output
+            Write-Host "=== End of $($job.Name) output ===`n"
+            
+            if ($result.State -eq 'Failed') {
+              Write-Error "❌ $($job.Name) job failed!"
+              $failed = $true
+            } elseif ($result.State -eq 'Completed') {
+              Write-Host "✅ $($job.Name) completed successfully"
             }
-            Remove-Job $_
+            
+            Remove-Job $job
           }
           
-          Write-Host "All dependencies installed successfully"
+          if ($failed) {
+            Write-Error "One or more npm install jobs failed"
+            exit 1
+          }
+          
+          Write-Host "`n✅ All dependencies installed successfully"
         shell: pwsh
 
       - name: Verify Tauri icons
@@ -382,6 +405,9 @@ jobs:
       contents: write
     
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
