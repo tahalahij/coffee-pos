@@ -50,10 +50,29 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Rust cache
+      - name: Install sccache
+        run: |
+          $env:SCCACHE_VERSION = "0.7.7"
+          Invoke-WebRequest -Uri "https://github.com/mozilla/sccache/releases/download/v$env:SCCACHE_VERSION/sccache-v$env:SCCACHE_VERSION-x86_64-pc-windows-msvc.tar.gz" -OutFile sccache.tar.gz
+          tar -xzf sccache.tar.gz
+          Move-Item "sccache-v$env:SCCACHE_VERSION-x86_64-pc-windows-msvc/sccache.exe" "$env:USERPROFILE\.cargo\bin\" -Force
+          echo "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
+
+      - name: Rust cache (with sccache)
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './desktop/src-tauri -> target'
+          cache-on-failure: true
+
+      - name: Cache sccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\Mozilla\sccache\cache
+          key: sccache-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            sccache-${{ runner.os }}-
 
       - name: Cache MongoDB
         id: cache-mongodb
@@ -62,36 +81,67 @@ jobs:
           path: mongodb-cache/mongod.exe
           key: mongodb-windows-x86_64-8.2.3
 
-      - name: Cache WiX Toolset
+      - name: Cache Tauri WiX Toolset
         uses: actions/cache@v4
         with:
-          path: ~\AppData\Local\tauri\WixTools
-          key: wix-toolset-3.14.1-${{ runner.os }}
+          path: |
+            ~\AppData\Local\tauri\WixTools
+            C:\Users\runneradmin\AppData\Local\tauri\WixTools
+          key: wix-toolset-${{ runner.os }}-wix314
+          restore-keys: |
+            wix-toolset-${{ runner.os }}-
 
-      - name: Cache NSIS
+      - name: Cache Tauri NSIS
         uses: actions/cache@v4
         with:
           path: |
             ~\AppData\Local\tauri\NSIS
-          key: nsis-3-tauri-utils-0.4.1-${{ runner.os }}
+            C:\Users\runneradmin\AppData\Local\tauri\NSIS
+          key: nsis-${{ runner.os }}-nsis3
+          restore-keys: |
+            nsis-${{ runner.os }}-
 
-      - name: Install dependencies (root)
-        run: npm install
-
-      - name: Install dependencies (backend)
+      - name: Install dependencies (parallel)
         run: |
-          cd backend
-          npm install
-
-      - name: Install dependencies (frontend)
-        run: |
-          cd frontend
-          npm install
-
-      - name: Install dependencies (desktop)
-        run: |
-          cd desktop
-          npm install
+          # Install all dependencies in parallel using PowerShell jobs
+          $jobs = @()
+          
+          # Root dependencies
+          $jobs += Start-Job -ScriptBlock { 
+            Set-Location $using:PWD
+            npm install
+          }
+          
+          # Backend dependencies
+          $jobs += Start-Job -ScriptBlock { 
+            Set-Location $using:PWD\backend
+            npm install
+          }
+          
+          # Frontend dependencies
+          $jobs += Start-Job -ScriptBlock { 
+            Set-Location $using:PWD\frontend
+            npm install
+          }
+          
+          # Desktop dependencies
+          $jobs += Start-Job -ScriptBlock { 
+            Set-Location $using:PWD\desktop
+            npm install
+          }
+          
+          # Wait for all jobs to complete and check results
+          $jobs | ForEach-Object {
+            $result = $_ | Wait-Job | Receive-Job
+            if ($_.State -eq 'Failed') {
+              Write-Error "Job failed: $($_.ChildJobs[0].JobStateInfo.Reason)"
+              exit 1
+            }
+            Remove-Job $_
+          }
+          
+          Write-Host "All dependencies installed successfully"
+        shell: pwsh
 
       - name: Verify Tauri icons
         run: |
@@ -299,6 +349,8 @@ jobs:
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          RUSTC_WRAPPER: sccache
+          SCCACHE_DIR: C:\Users\runneradmin\AppData\Local\Mozilla\sccache\cache
 
       - name: Upload Windows Installer (MSI)
         uses: actions/upload-artifact@v4
