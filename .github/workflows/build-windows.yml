@@ -3,8 +3,6 @@ name: Build Windows Desktop App
 on:
   push:
     branches: [main, master]
-    tags:
-      - 'v*'
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -12,6 +10,8 @@ on:
       - 'LICENSE'
       - '.vscode/**'
       - '.idea/**'
+    tags:
+      - 'v*'
   pull_request:
     branches: [main, master]
     paths-ignore:
