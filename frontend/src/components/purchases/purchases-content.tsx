@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Truck, Package, TrendingUp, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import AddPurchaseModal from './add-purchase-modal'
+import { purchasesService } from '@/lib/services'
+import { useToast } from '@/hooks/use-toast'
 
 interface Purchase {
   id: string
@@ -15,48 +17,53 @@ interface Purchase {
   createdAt: Date
 }
 
-const mockPurchases: Purchase[] = [
-  {
-    id: '1',
-    supplierName: 'شرکت دانه‌های قهوه',
-    totalAmount: 4500000,
-    status: 'RECEIVED',
-    createdAt: new Date('2025-09-15T09:00:00'),
-  },
-  {
-    id: '2',
-    supplierName: 'پخش شیرینی‌جات',
-    totalAmount: 2800000,
-    status: 'PENDING',
-    createdAt: new Date('2025-09-14T14:30:00'),
-  },
-  {
-    id: '3',
-    supplierName: 'تأمین‌کننده لبنیات',
-    totalAmount: 1200000,
-    status: 'RECEIVED',
-    createdAt: new Date('2025-09-13T11:00:00'),
-  }
-]
-
 export default function PurchasesContent() {
-  const [purchases, setPurchases] = useState<Purchase[]>(mockPurchases)
+  const [purchases, setPurchases] = useState<Purchase[]>([])
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
 
-  const handleAddPurchase = (purchaseData: {
+  useEffect(() => {
+    fetchPurchases()
+  }, [])
+
+  const fetchPurchases = async () => {
+    try {
+      setIsLoading(true)
+      const data = await purchasesService.getAll()
+      setPurchases(data)
+    } catch (error) {
+      console.error('Error fetching purchases:', error)
+      toast({
+        title: 'خطا',
+        description: 'بارگذاری خریدها با مشکل مواجه شد',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleAddPurchase = async (purchaseData: {
     supplierName: string
     items: any[]
     totalAmount: number
   }) => {
-    const newPurchase: Purchase = {
-      id: Date.now().toString(),
-      supplierName: purchaseData.supplierName,
-      totalAmount: purchaseData.totalAmount,
-      status: 'PENDING',
-      createdAt: new Date()
+    try {
+      await purchasesService.create(purchaseData)
+      toast({
+        title: 'موفقیت',
+        description: 'خرید با موفقیت ثبت شد',
+      })
+      await fetchPurchases()
+    } catch (error) {
+      console.error('Error creating purchase:', error)
+      toast({
+        title: 'خطا',
+        description: 'ثبت خرید با مشکل مواجه شد',
+        variant: 'destructive',
+      })
     }
-
-    setPurchases([newPurchase, ...purchases])
   }
 
   const getStatusColor = (status: string) => {
@@ -80,6 +87,19 @@ export default function PurchasesContent() {
   const totalPurchases = purchases.reduce((sum, p) => sum + p.totalAmount, 0)
   const pendingPurchases = purchases.filter(p => p.status === 'PENDING')
   const receivedPurchases = purchases.filter(p => p.status === 'RECEIVED')
+
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-6 h-full overflow-y-auto bg-gradient-to-br from-slate-50 to-indigo-50">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">در حال بارگذاری...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6 h-full overflow-y-auto bg-gradient-to-br from-slate-50 to-indigo-50">

@@ -375,6 +375,44 @@ export const discountCodeService = {
   }
 }
 
+// Purchases Services
+export const purchasesService = {
+  async getAll(): Promise<any[]> {
+    const response = await api.get('/purchases')
+    return response.data
+  },
+
+  async getById(id: string): Promise<any> {
+    const response = await api.get(`/purchases/${id}`)
+    return response.data
+  },
+
+  async create(purchase: any): Promise<any> {
+    const response = await api.post('/purchases', purchase)
+    return response.data
+  },
+
+  async update(id: string, purchase: any): Promise<any> {
+    const response = await api.patch(`/purchases/${id}`, purchase)
+    return response.data
+  },
+
+  async markAsReceived(id: string): Promise<any> {
+    const response = await api.post(`/purchases/${id}/receive`)
+    return response.data
+  },
+
+  async cancel(id: string, reason?: string): Promise<any> {
+    const response = await api.post(`/purchases/${id}/cancel`, { reason })
+    return response.data
+  },
+
+  async getStats(): Promise<any> {
+    const response = await api.get('/purchases/stats')
+    return response.data
+  }
+}
+
 // Loyalty Services
 export const loyaltyService = {
   async getCustomerLoyalty(customerId: string): Promise<any> {
