@@ -1,6 +1,6 @@
 {
   "name": "cafe-pos",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Modern Cafe Point of Sale System",
   "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
