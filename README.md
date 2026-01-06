@@ -6,6 +6,8 @@
 
 A modern, easy-to-use point of sale system designed specifically for cafes and coffee shops. Manage your sales, inventory, and customers all in one place - even when you're offline!
 
+> **🆕 NEW: Dual-Screen Support!** Now with customer-facing display for TVs/monitors. [Learn more →](#-dual-screen-customer-display)
+
 ---
 
 ## 📥 Download & Install
@@ -34,6 +36,29 @@ Download the latest version and double-click to install:
 - **RAM:** 4 GB minimum (8 GB recommended)
 - **Storage:** 500 MB free space
 - **Internet:** Not required after installation (works offline)
+
+---
+
+## 🖥️ Dual-Screen Customer Display
+
+**NEW FEATURE:** Run the POS on your laptop while showing a customer-facing display on a TV or second monitor via HDMI.
+
+### Features
+- ✅ **Operator screen**: Full POS interface for cashier
+- ✅ **Customer display**: Shows cart items and total in real-time
+- ✅ **Automatic setup**: Connect HDMI TV and it just works
+- ✅ **Professional look**: Fullscreen, branded display with animations
+
+### Quick Setup
+```bash
+# Install dependencies
+./setup-dual-screen.sh  # Mac/Linux
+setup-dual-screen.bat   # Windows
+
+# Then start the app as normal
+```
+
+📖 **[Dual-Screen Setup Guide](DUAL-SCREEN-SETUP.md)** | 🚀 **[Quick Start](DUAL-SCREEN-QUICK-START.md)**
 
 ---
 ## ✨ What Can You Do With Cafe POS?

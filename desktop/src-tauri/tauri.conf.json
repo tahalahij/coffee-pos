@@ -60,13 +60,18 @@
     },
     "windows": [
       {
+        "label": "operator",
+        "url": "/operator",
         "fullscreen": false,
         "resizable": true,
-        "title": "Cafe POS",
+        "title": "Cafe POS - Operator Terminal",
         "width": 1400,
         "height": 900,
         "minWidth": 1024,
-        "minHeight": 768
+        "minHeight": 768,
+        "center": true,
+        "decorations": true,
+        "alwaysOnTop": false
       }
     ]
   }

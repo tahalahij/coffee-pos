@@ -11,6 +11,8 @@ import { CustomersModule } from './customers/customers.module';
 import { LoggerMiddleware } from './logger.middleware';
 import { CampaignsModule } from './campaigns/campaigns.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
+import { DisplayModule } from './display/display.module';
+import { GiftModule } from './gift/gift.module';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { LoyaltyModule } from './loyalty/loyalty.module';
     AnalyticsModule,
     CampaignsModule,
     LoyaltyModule,
+    DisplayModule,
+    GiftModule,
   ],
 })
 export class AppModule implements NestModule {
