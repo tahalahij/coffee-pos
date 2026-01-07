@@ -430,8 +430,6 @@ fn wait_for_port(host: &str, port: u16, timeout_secs: u64, log_file: &Arc<Mutex<
 }
 
 fn create_display_window(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std::fs::File>>>) -> Result<(), String> {
-    use tauri::Manager;
-    
     log_message(log_file, "INFO", "Attempting to create display window...");
     
     // Get all available monitors
@@ -452,22 +450,13 @@ fn create_display_window(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std
             log_file, 
             "INFO", 
             &format!(
-                "Second monitor - Position: ({}, {}), Size: {}x{}",
-                monitor_pos.x, monitor_pos.y,
-                monitor_size.width, monitor_size.height
+                "Second monitor - Position: ({:?}), Size: ({:?})",
+                monitor_pos,
+                monitor_size
             )
         );
         
-        (
-            tauri::Position::Physical(tauri::PhysicalPosition {
-                x: monitor_pos.x,
-                y: monitor_pos.y,
-            }),
-            tauri::Size::Physical(tauri::PhysicalSize {
-                width: monitor_size.width,
-                height: monitor_size.height,
-            })
-        )
+        (monitor_pos, monitor_size)
     } else {
         // Fallback to primary monitor with offset
         log_message(log_file, "INFO", "Only one monitor detected, using offset position");
@@ -485,8 +474,8 @@ fn create_display_window(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std
         tauri::WindowUrl::App("/display".into())
     )
     .title("Customer Display")
-    .position(position.x, position.y)
-    .inner_size(size.width, size.height)
+    .position(position.x(), position.y())
+    .inner_size(size.width(), size.height())
     .fullscreen(monitor_count >= 2) // Only fullscreen if we have a second monitor
     .decorations(false)
     .resizable(false)
