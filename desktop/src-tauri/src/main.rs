@@ -452,26 +452,16 @@ fn create_display_window(app: &tauri::AppHandle, log_file: &Arc<Mutex<Option<std
         let monitor_pos = second_monitor.position();
         let monitor_size = second_monitor.size();
         
-        let (pos_x, pos_y) = match monitor_pos {
-            tauri::Position::Physical(p) => (p.x, p.y),
-            tauri::Position::Logical(l) => (l.x as i32, l.y as i32),
-        };
-        
-        let (size_w, size_h) = match monitor_size {
-            tauri::Size::Physical(s) => (s.width, s.height),
-            tauri::Size::Logical(s) => (s.width as u32, s.height as u32),
-        };
-        
         log_message(
             log_file, 
             "INFO", 
             &format!(
                 "Second monitor - Position: ({}, {}), Size: {}x{}",
-                pos_x, pos_y, size_w, size_h
+                monitor_pos.x, monitor_pos.y, monitor_size.width, monitor_size.height
             )
         );
         
-        (pos_x as f64, pos_y as f64, size_w as f64, size_h as f64, true)
+        (monitor_pos.x as f64, monitor_pos.y as f64, monitor_size.width as f64, monitor_size.height as f64, true)
     } else {
         // Fallback to primary monitor with offset
         log_message(log_file, "INFO", "Only one monitor detected, using offset position");
