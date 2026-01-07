@@ -189,6 +189,28 @@ export default function DisplayPage() {
                 </p>
               </div>
             </motion.div>
+
+            {/* Available Gifts Indicator */}
+            {giftChainState.recentGifts.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="mt-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl shadow-xl p-8 text-white text-center"
+              >
+                <div className="flex items-center justify-center gap-4">
+                  <Heart className="w-12 h-12 fill-white" />
+                  <div>
+                    <p className="text-3xl font-bold">
+                      {giftChainState.recentGifts.length} {giftChainState.recentGifts.length === 1 ? 'Gift' : 'Gifts'} Available!
+                    </p>
+                    <p className="text-xl opacity-90">
+                      Someone paid it forward for you ❤️
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

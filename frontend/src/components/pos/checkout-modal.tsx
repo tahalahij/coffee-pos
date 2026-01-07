@@ -8,6 +8,7 @@ import { CartItem, AppliedDiscount } from '@/types'
 import { useSalesStore } from '@/hooks/use-sales-store'
 import toast from 'react-hot-toast'
 import { api } from '@/lib/api'
+import { GiftCheckoutPanel } from '@/components/checkout/GiftCheckoutPanel'
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -36,12 +37,38 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
   const [discountLoading, setDiscountLoading] = useState(false)
   const [discountError, setDiscountError] = useState('')
 
+  // Gift metadata state
+  const [giftMetadata, setGiftMetadata] = useState<any>(null)
+
   if (!isOpen) return null
 
-  // Calculate totals with discount
+  // Calculate gift discount from selected gifts
+  const calculateGiftDiscount = () => {
+    if (!giftMetadata?.selectedGiftIds || giftMetadata.selectedGiftIds.length === 0) {
+      return 0;
+    }
+    // Each selected gift covers one item's price
+    // Match gifts to cart items by going through items in order
+    let remainingGifts = [...giftMetadata.selectedGiftIds];
+    let giftDiscount = 0;
+    
+    for (const item of items) {
+      const itemPrice = item.price * item.quantity;
+      if (remainingGifts.length > 0) {
+        // Apply gift to this item
+        giftDiscount += Math.min(itemPrice, item.price);
+        remainingGifts.shift();
+      }
+    }
+    
+    return giftDiscount;
+  };
+
+  // Calculate totals with discount and gifts
   const subtotal = total
   const discountAmount = appliedDiscount?.discountAmount || 0
-  const finalTotal = subtotal - discountAmount
+  const giftDiscount = calculateGiftDiscount()
+  const finalTotal = Math.max(0, subtotal - discountAmount - giftDiscount)
 
   const handleApplyDiscount = async () => {
     if (!discountCode.trim()) return
@@ -84,14 +111,21 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
       const saleData = {
         paymentMethod,
         customerId: customer?.id,
-        cashReceived: paymentMethod === 'CASH' ? cashReceived : undefined,
         discountCodeId: appliedDiscount?.discountCodeId,
         items: items.map(item => ({
           // Use product.id directly - it's already a string MongoDB ObjectId
           productId: item.product.id,
           quantity: item.quantity,
           unitPrice: item.price
-        }))
+        })),
+        // Include gift metadata if available
+        ...(giftMetadata && (giftMetadata.selectedGiftIds?.length > 0 || giftMetadata.buyForNext) && {
+          giftMetadata: {
+            claimedGiftIds: giftMetadata.selectedGiftIds || [],
+            buyForNext: giftMetadata.buyForNext || false,
+            gifterName: giftMetadata.gifterName || customer?.name,
+          }
+        })
       }
 
       console.log('Sending sale data:', JSON.stringify(saleData, null, 2))
@@ -125,15 +159,14 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
     }
   }
 
-  const change = paymentMethod === 'CASH' ? Math.max(0, cashReceived - finalTotal) : 0
-  const canProcess = paymentMethod === 'CASH' ? cashReceived >= finalTotal : true
+  const canProcess = true
 
   const handleCustomerSearch = async () => {
     setCustomerSearchLoading(true)
     setCustomerError('')
     setCustomer(null)
     try {
-      const res = await api.get(`/customers/search?q=${encodeURIComponent(customerPhone)}`)
+      const res = await api.get(`/customers/search?q=${encodeURIComponent(toEnglishDigits(customerPhone))}`)
       if (res.data.length > 0) {
         setCustomer(res.data[0])
         setCustomerName(res.data[0].name)
@@ -171,7 +204,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md m-4 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl m-4 overflow-hidden max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-6 bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
           <h2 className="text-xl font-bold">صورتحساب</h2>
           <Button variant="ghost" size="sm" onClick={onClose} className="text-white hover:bg-white/20">
@@ -179,9 +212,12 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
           </Button>
         </div>
 
-        <div className="p-6 space-y-6">
-          {/* Customer Search/Add */}
-          <div className="bg-gray-50 rounded-xl p-4">
+        <div className="p-6 overflow-y-auto flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left Column */}
+          <div className="space-y-6">
+            {/* Customer Search/Add */}
+            <div className="bg-gray-50 rounded-xl p-4">
             <label className="block text-sm font-bold text-gray-700 mb-3">شماره تلفن مشتری</label>
             <div className="flex gap-2 mb-2">
               <input
@@ -287,6 +323,23 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
             )}
           </div>
 
+          {/* Gift Section - Pay It Forward - Only show when customer is selected */}
+          {customer && (
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4">
+              <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <span>🎁</span>
+                <span>هدیه</span>
+              </h3>
+              <GiftCheckoutPanel 
+                onGiftMetadataChange={setGiftMetadata}
+                customerName={customer?.name}
+              />
+            </div>
+          )}
+          </div>
+
+          {/* Right Column */}
+          <div className="space-y-6">
           {/* Order Summary */}
           <div className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-xl p-4">
             <h3 className="font-bold text-gray-800 mb-4">خلاصه سفارش</h3>
@@ -315,6 +368,14 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
                     تخفیف ({appliedDiscount.code}):
                   </span>
                   <span className="font-medium">-{formatCurrency(discountAmount)}</span>
+                </div>
+              )}
+              {giftDiscount > 0 && (
+                <div className="flex justify-between items-center text-sm text-purple-600">
+                  <span className="flex items-center gap-1">
+                    🎁 هدایا ({giftMetadata?.selectedGiftIds?.length}):
+                  </span>
+                  <span className="font-medium">-{formatCurrency(giftDiscount)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center pt-2 border-t">
@@ -400,7 +461,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
                 }`}
               >
                 <CreditCard className="h-6 w-6 mb-2" />
-                <span className="text-xs font-medium">کارت</span>
+                <span className="text-xs font-medium">کارت به کارت</span>
               </button>
               <button
                 onClick={() => setPaymentMethod('DIGITAL')}
@@ -411,43 +472,12 @@ export function CheckoutModal({ isOpen, onClose, onComplete, total, items }: Che
                 }`}
               >
                 <Smartphone className="h-6 w-6 mb-2" />
-                <span className="text-xs font-medium">دیجیتال</span>
+                <span className="text-xs font-medium">دستگاه پوز</span>
               </button>
             </div>
           </div>
-
-          {/* Cash Payment Details */}
-          {paymentMethod === 'CASH' && (
-            <div className="bg-green-50 rounded-xl p-4">
-              <label className="block text-sm font-bold text-gray-700 mb-3">مبلغ دریافتی</label>
-              <input
-                type="number"
-                value={cashReceived || ''}
-                onChange={(e) => setCashReceived(parseFloat(e.target.value) || 0)}
-                className="w-full px-4 py-3 border-0 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
-                placeholder="0"
-                dir="ltr"
-              />
-              {cashReceived > 0 && (
-                <div className="mt-4 p-4 bg-white rounded-xl shadow-sm space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">مبلغ قابل پرداخت:</span>
-                    <span className="font-medium text-gray-800">{formatCurrency(finalTotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">دریافتی:</span>
-                    <span className="font-medium text-gray-800">{formatCurrency(cashReceived)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold border-t pt-2 mt-2">
-                    <span className="text-gray-700">باقیمانده:</span>
-                    <span className={`text-lg ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrency(change)}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          </div>
+          </div>
         </div>
 
         <div className="p-6 bg-gray-50 space-y-3">

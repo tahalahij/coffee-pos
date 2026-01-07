@@ -7,6 +7,7 @@ import { Customer, CustomerDocument } from '../customers/models/customer.model';
 import { Category, CategoryDocument } from '../categories/models/category.model';
 import { CreateSaleDto, UpdateSaleDto, SalesSummaryDto } from './dto/sale.dto';
 import { ProductsService } from '../products/products.service';
+import { PostPaymentGiftHandler } from '../gift/post-payment-gift.handler';
 
 @Injectable()
 export class SalesService {
@@ -20,6 +21,7 @@ export class SalesService {
     @InjectModel(Category.name)
     private categoryModel: Model<CategoryDocument>,
     private productsService: ProductsService,
+    private postPaymentGiftHandler: PostPaymentGiftHandler,
   ) {}
 
   // Helper to validate and convert to ObjectId
@@ -135,6 +137,32 @@ export class SalesService {
         item.productId,
         { $inc: { stock: -item.quantity } }
       );
+    }
+
+    // Process gifts after payment (non-blocking)
+    if (createSaleDto.giftMetadata) {
+      const items = await Promise.all(
+        createSaleDto.items.map(async (item) => {
+          const product = await this.productModel.findById(item.productId).lean();
+          return {
+            productId: String(item.productId),
+            productName: product?.name || 'Unknown',
+            productType: product?.categoryId ? String(product.categoryId) : undefined,
+            quantity: item.quantity,
+            price: item.unitPrice,
+          };
+        })
+      );
+
+      // Execute gift processing asynchronously (don't block sale response)
+      this.postPaymentGiftHandler.processPostPaymentGifts({
+        orderId: newSale._id.toString(),
+        customerId: createSaleDto.customerId,
+        items,
+        giftMetadata: createSaleDto.giftMetadata,
+      }).catch(error => {
+        console.error('Gift processing error:', error);
+      });
     }
 
     // Return sale with populated data

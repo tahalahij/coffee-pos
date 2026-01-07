@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsEnum, IsArray, ValidateNested, Min, IsInt } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsEnum, IsArray, ValidateNested, Min, IsInt, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { SaleStatus } from '../models/sale.model';
@@ -7,6 +7,24 @@ export enum PaymentMethod {
   CASH = 'CASH',
   CARD = 'CARD',
   DIGITAL = 'DIGITAL',
+}
+
+export class GiftMetadataDto {
+  @ApiPropertyOptional({ type: [String], description: 'Gift IDs to claim/use' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  claimedGiftIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Create gift for next customer' })
+  @IsOptional()
+  @IsBoolean()
+  buyForNext?: boolean;
+
+  @ApiPropertyOptional({ description: 'Name of person creating gift' })
+  @IsOptional()
+  @IsString()
+  gifterName?: string;
 }
 
 export class CreateSaleItemDto {
@@ -111,6 +129,12 @@ export class CreateSaleDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ type: GiftMetadataDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GiftMetadataDto)
+  giftMetadata?: GiftMetadataDto;
 }
 
 export class UpdateSaleDto {

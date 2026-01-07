@@ -1,15 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGiftCheckout } from '@/hooks/use-gift-checkout';
 import { GiftIndicator } from '@/components/checkout/GiftIndicator';
 import { GiftSelector } from '@/components/checkout/GiftSelector';
 import { ChainToggle } from '@/components/checkout/ChainToggle';
-import { GifterNameInput } from '@/components/checkout/GifterNameInput';
 
 interface GiftCheckoutPanelProps {
   onGiftMetadataChange?: (metadata: any) => void;
+  customerName?: string;
 }
 
 /**
@@ -25,7 +25,7 @@ interface GiftCheckoutPanelProps {
  * This component is completely optional and can be hidden/removed without
  * affecting existing checkout functionality.
  */
-export function GiftCheckoutPanel({ onGiftMetadataChange }: GiftCheckoutPanelProps) {
+export function GiftCheckoutPanel({ onGiftMetadataChange, customerName }: GiftCheckoutPanelProps) {
   const [showGiftSelector, setShowGiftSelector] = useState(false);
   
   const {
@@ -33,7 +33,6 @@ export function GiftCheckoutPanel({ onGiftMetadataChange }: GiftCheckoutPanelPro
     availableGifts,
     selectedGiftIds,
     buyForNext,
-    gifterName,
     toggleGiftSelection,
     setBuyForNext,
     setGifterName,
@@ -41,6 +40,13 @@ export function GiftCheckoutPanel({ onGiftMetadataChange }: GiftCheckoutPanelPro
     hasSelectedGifts,
     shouldEmphasizeChainToggle,
   } = useGiftCheckout();
+
+  // Use customer name when available
+  useEffect(() => {
+    if (customerName && buyForNext) {
+      setGifterName(customerName);
+    }
+  }, [customerName, buyForNext, setGifterName]);
 
   // Notify parent of metadata changes
   const handleMetadataChange = () => {
@@ -56,11 +62,6 @@ export function GiftCheckoutPanel({ onGiftMetadataChange }: GiftCheckoutPanelPro
 
   const handleBuyForNextToggle = (enabled: boolean) => {
     setBuyForNext(enabled);
-    handleMetadataChange();
-  };
-
-  const handleNameChange = (name: string) => {
-    setGifterName(name);
     handleMetadataChange();
   };
 
@@ -94,13 +95,6 @@ export function GiftCheckoutPanel({ onGiftMetadataChange }: GiftCheckoutPanelPro
         enabled={buyForNext}
         onChange={handleBuyForNextToggle}
         emphasized={shouldEmphasizeChainToggle}
-      />
-
-      {/* Optional name input */}
-      <GifterNameInput
-        value={gifterName}
-        onChange={handleNameChange}
-        visible={buyForNext}
       />
 
       {/* Gift selector modal */}

@@ -36,9 +36,9 @@ export function ChainToggle({ enabled, onChange, emphasized = false }: ChainTogg
           className={`w-6 h-6 ${enabled ? 'text-white fill-white' : 'text-gray-400'}`}
         />
       </div>
-      <div className="flex-1 text-left">
+      <div className="flex-1 text-right">
         <p className={`font-semibold ${enabled ? 'text-pink-700' : 'text-gray-700'}`}>
-          Buy for the next person
+          خرید برای نفر بعدی
         </p>
       </div>
       <div
