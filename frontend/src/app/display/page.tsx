@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag, Coffee, Sparkles, Heart } from 'lucide-react';
 import { useDisplaySync } from '@/hooks/use-display-sync';

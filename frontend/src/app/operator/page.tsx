@@ -8,7 +8,7 @@ import { useCartStore } from '@/hooks/use-cart-store';
 import { useProductStore } from '@/hooks/use-product-store';
 import { useSalesStore } from '@/hooks/use-sales-store';
 import { useDisplaySync } from '@/hooks/use-display-sync';
-import { POSInterface } from '@/components/pos/POSInterface';
+import { POSInterface } from '@/components/pos/pos-interface';
 import { Monitor, TrendingUp, Package, Users } from 'lucide-react';
 
 export default function OperatorPage() {
