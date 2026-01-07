@@ -63,6 +63,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           return (
             <Button
               key={item.key}
+              data-testid={`nav-${item.key}`}
               variant="ghost"
               className={cn(
                 "w-full justify-start gap-3 h-12 rounded-xl transition-all duration-200",

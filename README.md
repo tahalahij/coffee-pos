@@ -265,7 +265,6 @@ cafe-pos/
 ├── frontend/          # Next.js frontend application
 ├── backend/           # NestJS backend API
 ├── desktop/           # Tauri desktop application
-├── shared/            # Shared types and utilities
 └── docs/              # Documentation
 ```
 

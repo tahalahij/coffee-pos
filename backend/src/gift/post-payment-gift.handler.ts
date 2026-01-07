@@ -181,7 +181,7 @@ export class PostPaymentGiftHandler {
         // from your product service. For now, return placeholder.
         // The actual discount amount should be calculated in your checkout logic.
         discountItems.push({
-          giftId: gift._id.toString(),
+          giftId: (gift as any)._id?.toString() || giftId,
           productId: gift.productId,
           productName: gift.productName,
           discountAmount: 0, // Placeholder - calculate actual price in checkout
