@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GiftService } from '../gift/gift.service';
+import { ProductsService } from '../products/products.service';
 
 export interface PostPaymentGiftContext {
   orderId: string;
@@ -32,7 +33,10 @@ export interface PostPaymentGiftContext {
 export class PostPaymentGiftHandler {
   private readonly logger = new Logger(PostPaymentGiftHandler.name);
 
-  constructor(private readonly giftService: GiftService) {}
+  constructor(
+    private readonly giftService: GiftService,
+    private readonly productsService: ProductsService,
+  ) {}
 
   /**
    * Process gifts after successful payment
@@ -162,7 +166,7 @@ export class PostPaymentGiftHandler {
       giftId: string;
       productId: string;
       productName: string;
-      discountAmount: number; // Should be 100% of product price
+      discountAmount: number; // 100% of product price
       discountType: 'GIFT';
     }>
   > {
@@ -177,14 +181,22 @@ export class PostPaymentGiftHandler {
           continue;
         }
 
-        // Note: In real implementation, you'd need to fetch the product price
-        // from your product service. For now, return placeholder.
-        // The actual discount amount should be calculated in your checkout logic.
+        // Fetch the actual product price
+        const product = await this.productsService.findOne(gift.productId);
+        
+        if (!product) {
+          this.logger.warn(`Product ${gift.productId} not found for gift ${giftId}, skipping`);
+          continue;
+        }
+
+        // Calculate 100% discount (full product price)
+        const discountAmount = product.price * (gift.quantity || 1);
+
         discountItems.push({
           giftId: (gift as any)._id?.toString() || giftId,
           productId: gift.productId,
           productName: gift.productName,
-          discountAmount: 0, // Placeholder - calculate actual price in checkout
+          discountAmount,
           discountType: 'GIFT' as const,
         });
       } catch (error) {

@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { CartItem as StoreCartItem } from '@/types';
 
-interface CartItem {
+interface DisplayCartItem {
   id: string;
   name: string;
   price: number;
@@ -9,7 +10,7 @@ interface CartItem {
 }
 
 interface DisplayState {
-  items: CartItem[];
+  items: DisplayCartItem[];
   total: number;
   itemCount: number;
 }
@@ -77,12 +78,20 @@ export function useDisplaySync() {
     };
   }, []);
 
-  const sendCartUpdate = useCallback((items: CartItem[], total: number) => {
+  const sendCartUpdate = useCallback((items: StoreCartItem[], total: number) => {
     if (socket && connected) {
+      // Transform store cart items to display format
+      const displayItems: DisplayCartItem[] = items.map(item => ({
+        id: item.id,
+        name: item.product.name,
+        price: item.price,
+        quantity: item.quantity,
+      }));
+      
       socket.emit('message', {
         type: 'CART_UPDATE',
         payload: {
-          items,
+          items: displayItems,
           total,
           itemCount: items.length,
         },

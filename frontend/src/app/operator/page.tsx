@@ -17,24 +17,38 @@ export default function OperatorPage() {
   const sales = useSalesStore();
   const { connected: wsConnected, sendCartUpdate, sendSaleComplete } = useDisplaySync();
 
+  const cartTotal = cart.getTotalAmount();
+
   // Sync cart changes to display
   useEffect(() => {
     if (wsConnected) {
-      sendCartUpdate(cart.items, cart.total);
+      sendCartUpdate(cart.items, cartTotal);
     }
-  }, [cart.items, cart.total, wsConnected, sendCartUpdate]);
+  }, [cart.items, cartTotal, wsConnected, sendCartUpdate]);
 
   const handleCompleteSale = async () => {
     const cartItems = cart.items;
-    const total = cart.total;
+    const total = cartTotal;
+
+    // Transform cart items to sale items format
+    const saleItems = cartItems.map(item => ({
+      id: item.id,
+      product: { name: item.product.name, price: item.product.price },
+      quantity: item.quantity,
+      unitPrice: item.price,
+      totalAmount: item.price * item.quantity,
+    }));
 
     // Process sale through backend
     try {
-      // Your existing sale logic here
       await sales.addSale({
-        items: cartItems,
-        total,
-        timestamp: new Date(),
+        items: saleItems,
+        totalAmount: total,
+        subtotal: total,
+        taxAmount: 0,
+        discountAmount: 0,
+        paymentMethod: 'CASH',
+        status: 'COMPLETED',
       });
 
       // Notify display of sale completion
@@ -91,7 +105,7 @@ export default function OperatorPage() {
         </TabsList>
 
         <TabsContent value="pos" className="space-y-4">
-          <POSInterface onCompleteSale={handleCompleteSale} />
+          <POSInterface />
         </TabsContent>
 
         <TabsContent value="sales">
