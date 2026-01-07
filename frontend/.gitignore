@@ -4,3 +4,8 @@ dist
 node_modules
 public
 out
+
+# Playwright test artifacts
+/test-results/
+/playwright-report/
+/playwright/.cache/
